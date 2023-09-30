@@ -31,7 +31,7 @@
         "unavailable": "Servidor Indisponível",
         "available": "Status do Servidor: {} e Klippy: {}"
       },
-      "fetching_printer": "Recuperando Impressoras ...",
+      "fetching_printer": "Procurando Impressoras...",
       "general": {
         "print_card": {
           "reset": "Reiniciar",
@@ -140,7 +140,7 @@
       "last_mod": "Última Modificação",
       "not_printed": "Não Impresso",
       "last_printed": "Última Impressão",
-      "fetching_files": "@:general.fetching Arquivos ...",
+      "fetching_files": "@:general.fetching Arquivos...",
       "no_files_found": "Nenhum Arquivo Encontrado!",
       "details": {
         "preheat": "Pré-Aquecer",
@@ -294,7 +294,7 @@
   },
   "components": {
     "pull_to_refresh": {
-      "pull_up_idle": "Puxe para cima para atualizar"
+      "pull_up_idle": "Arrasta para cima para atualizar"
     },
     "nav_drawer": {
       "printer_settings": "Configurações da Impressora",
@@ -314,7 +314,7 @@
       "message": "Se você gosta do MobileRaker e deseja apoiar o desenvolvimento de código aberto, por favor avalie o MobileRaker!"
     },
     "import_setting": {
-      "fetching": "Obtendo candidatos...",
+      "fetching": "Obtendo configurações...",
       "fetching_error_title": "Não foi possível obter configurações!",
       "fetching_error_sub": "Certifique-se de que outras máquinas estejam conectadas.",
       "select_source": "Selecionar Fonte"
