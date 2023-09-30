@@ -294,7 +294,7 @@
   },
   "components": {
     "pull_to_refresh": {
-      "pull_up_idle": "Arrasta para cima para atualizar"
+      "pull_up_idle": "Puxe para baixo para atualizar"
     },
     "nav_drawer": {
       "printer_settings": "Configurações da Impressora",
