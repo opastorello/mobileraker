@@ -287,9 +287,9 @@
     },
     "overview": {
       "title": "Visão Geral",
-      "fetching_machines": "@:general.fetching Máquinas ...",
-      "no_entries": "Nenhuma Máquina Encontrada",
-      "add_machine": "Adicionar Máquina"
+      "fetching_machines": "@:general.fetching Impressoras...",
+      "no_entries": "Nenhuma Impressora Encontrada",
+      "add_machine": "Adicionar Impressora"
     }
   },
   "components": {
@@ -299,7 +299,7 @@
     "nav_drawer": {
       "printer_settings": "Configurações da Impressora",
       "manage_printers": "Gerenciar Impressoras",
-      "fetching_printers": "@:general.fetching Impressoras ..."
+      "fetching_printers": "@:general.fetching Impressoras..."
     },
     "connection_watcher": {
       "reconnect": "Reconectar",
