@@ -15,7 +15,7 @@
     "restart": "Reiniciar",
     "shutdown": "Desligar",
     "firmware": "Firmware",
-    "fetching": "Buscando",
+    "fetching": "Procurando",
     "unknown": "Desconhecido",
     "disabled": "Desativado",
     "confirm": "Confirmar",
@@ -31,7 +31,7 @@
         "unavailable": "Servidor Indisponível",
         "available": "Status do Servidor: {} e Klippy: {}"
       },
-      "fetching_printer": "Procurando Impressoras...",
+      "fetching_printer": "@:general.fetching Impressoras...",
       "general": {
         "print_card": {
           "reset": "Reiniciar",
@@ -206,7 +206,7 @@
       "import_settings": "Importar Configurações",
       "remove_printer": "Remover Impressora",
       "no_values_found": "Nenhum Valor Encontrado!",
-      "fetching_additional_settings": "@:general.fetching Configurações Adicionais da Rede ...",
+      "fetching_additional_settings": "@:general.fetching Configurações Adicionais da Rede...",
       "could_not_fetch_additional": "Não foi possível buscar configurações adicionais!",
       "fetch_error_hint": "Certifique-se de que a máquina está acessível e conectada ao Mobileraker.",
       "general": {
@@ -280,7 +280,7 @@
     "console": {
       "title": "Console",
       "no_entries": "Nenhum Comando em Cache Encontrado",
-      "fetching_console": "@:general.fetching Entradas de Console ...",
+      "fetching_console": "@:general.fetching Entradas de Console...",
       "command_input": {
         "hint": "Digite um Comando"
       }
