@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
@@ -7,6 +7,7 @@ import 'package:common/data/dto/config/config_file.dart';
 import 'package:common/data/dto/machine/exclude_object.dart';
 import 'package:common/service/moonraker/printer_service.dart';
 import 'package:common/service/ui/dialog_service_interface.dart';
+import 'package:common/ui/dialog/mobileraker_dialog.dart';
 import 'package:common/ui/theme/theme_pack.dart';
 import 'package:common/util/extensions/async_ext.dart';
 import 'package:easy_localization/easy_localization.dart' hide TextDirection;
@@ -24,30 +25,35 @@ class ExcludeObjectDialog extends ConsumerWidget {
   final DialogRequest request;
   final DialogCompleter completer;
 
-  const ExcludeObjectDialog({Key? key, required this.request, required this.completer})
-      : super(key: key);
+  const ExcludeObjectDialog({
+    super.key,
+    required this.request,
+    required this.completer,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return ProviderScope(
-        overrides: [dialogCompleter.overrideWithValue(completer), excludeObjectControllerProvider],
-        child: const _ExcludeObjectDialog());
+      overrides: [
+        dialogCompleter.overrideWithValue(completer),
+        excludeObjectControllerProvider,
+      ],
+      child: const _ExcludeObjectDialog(),
+    );
   }
 }
 
 class _ExcludeObjectDialog extends ConsumerWidget {
-  const _ExcludeObjectDialog({Key? key}) : super(key: key);
+  const _ExcludeObjectDialog({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ThemeData themeData = Theme.of(context);
 
-    return Dialog(
+    return MobilerakerDialog(
       child: FormBuilder(
         key: ref.watch(excludeObjectFormKey),
-        child: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: ref.watch(excludeObjectProvider).when<Widget>(
+        child: ref.watch(excludeObjectProvider).when<Widget>(
               data: (ExcludeObject? data) {
                 var isConfirmed = ref.watch(conirmedProvider);
                 return Column(
@@ -72,11 +78,12 @@ class _ExcludeObjectDialog extends ConsumerWidget {
                       transitionBuilder: (child, anim) => SizeTransition(
                         sizeFactor: anim,
                         child: ScaleTransition(
-                            scale: anim,
-                            child: FadeTransition(
-                              opacity: anim,
-                              child: child,
-                            )),
+                          scale: anim,
+                          child: FadeTransition(
+                            opacity: anim,
+                            child: child,
+                          ),
+                        ),
                       ),
                       child: (isConfirmed)
                           ? ListTile(
@@ -90,42 +97,43 @@ class _ExcludeObjectDialog extends ConsumerWidget {
                               title: const Text(
                                 'dialogs.exclude_object.confirm_tile_title',
                               ).tr(),
-                              subtitle:
-                                  const Text('dialogs.exclude_object.confirm_tile_subtitle').tr(),
+                              subtitle: const Text(
+                                'dialogs.exclude_object.confirm_tile_subtitle',
+                              ).tr(),
                             )
                           : const SizedBox.shrink(),
                     ),
                     FormBuilderDropdown<ParsedObject?>(
                       enabled: !isConfirmed,
-                      validator: FormBuilderValidators.compose([FormBuilderValidators.required()]),
+                      validator: FormBuilderValidators.compose(
+                        [FormBuilderValidators.required()],
+                      ),
                       name: 'selected',
                       items: data!.canBeExcluded
-                          .map((parsedObj) =>
-                              DropdownMenuItem(value: parsedObj, child: Text(parsedObj.name)))
+                          .map((parsedObj) => DropdownMenuItem(
+                                value: parsedObj,
+                                child: Text(parsedObj.name),
+                              ))
                           .toList(),
-                      onChanged: ref
-                          .watch(excludeObjectControllerProvider.notifier)
-                          .onSelectedObjectChanged,
+                      onChanged: ref.watch(excludeObjectControllerProvider.notifier).onSelectedObjectChanged,
                       decoration: InputDecoration(
                         labelText: 'dialogs.exclude_object.label'.tr(),
                       ),
                     ),
-                    (isConfirmed) ? const ExcludeBtnRow() : const DefaultBtnRow()
+                    (isConfirmed) ? const ExcludeBtnRow() : const DefaultBtnRow(),
                   ],
                 );
               },
               error: (e, s) => const Text('Error while loading excludeObject'),
-              loading: () => FadingText('Waiting for data...')),
-        ),
+              loading: () => FadingText('Waiting for data...'),
+            ),
       ),
     );
   }
 }
 
 class DefaultBtnRow extends ConsumerWidget {
-  const DefaultBtnRow({
-    Key? key,
-  }) : super(key: key);
+  const DefaultBtnRow({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -137,23 +145,22 @@ class DefaultBtnRow extends ConsumerWidget {
           child: Text(tr('general.cancel')),
         ),
         TextButton(
-          onPressed: ((ref.watch(excludeObjectProvider
-                          .select((data) => data.valueOrNull?.objects.length ?? 0))) >
+          onPressed: ((ref.watch(excludeObjectProvider.select(
+                        (data) => data.valueOrNull?.objects.length ?? 0,
+                      ))) >
                       1 &&
                   ref.watch(excludeObjectControllerProvider) != null)
               ? ref.watch(excludeObjectControllerProvider.notifier).onExcludePressed
               : null,
           child: const Text('dialogs.exclude_object.exclude').tr(),
-        )
+        ),
       ],
     );
   }
 }
 
 class ExcludeBtnRow extends ConsumerWidget {
-  const ExcludeBtnRow({
-    Key? key,
-  }) : super(key: key);
+  const ExcludeBtnRow({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -173,34 +180,38 @@ class ExcludeBtnRow extends ConsumerWidget {
             'general.confirm',
             style: TextStyle(color: customColors?.danger),
           ).tr(),
-        )
+        ),
       ],
     );
   }
 }
 
 class ExcludeObjectMap extends ConsumerWidget {
-  const ExcludeObjectMap({
-    Key? key,
-  }) : super(key: key);
+  const ExcludeObjectMap({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    ConfigFile config = ref.watch(printerSelectedProvider.selectAs((data) => data.configFile)).valueOrNull!;
+    ConfigFile config = ref.watch(printerSelectedProvider.selectAs((data) => data.configFile)).requireValue;
 
     return IntrinsicHeight(
       child: Center(
         child: AspectRatio(
           aspectRatio: config.sizeX / config.sizeY,
           child: CanvasTouchDetector(
-              gesturesToOverride: const [GestureType.onTapDown, GestureType.onTapUp],
-              builder: (context) => CustomPaint(
-                  painter: ExcludeObjectPainter(
-                      context,
-                      ref.watch(excludeObjectControllerProvider.notifier),
-                      ref.watch(excludeObjectProvider).valueOrNull!,
-                      ref.watch(excludeObjectControllerProvider),
-                      config))),
+            gesturesToOverride: const [
+              GestureType.onTapDown,
+              GestureType.onTapUp,
+            ],
+            builder: (context) => CustomPaint(
+              painter: ExcludeObjectPainter(
+                context,
+                ref.watch(excludeObjectControllerProvider.notifier),
+                ref.watch(excludeObjectProvider).requireValue!,
+                ref.watch(excludeObjectControllerProvider),
+                config,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -210,9 +221,11 @@ class ExcludeObjectMap extends ConsumerWidget {
 class ExcludeObjectPainter extends CustomPainter {
   static const double bgLineDis = 50;
 
-  ExcludeObjectPainter(
-      this.context, this.controller, this.excludeObject, this.selected, this.config)
-      : obj = selected;
+  ExcludeObjectPainter(this.context,
+      this.controller,
+      this.excludeObject,
+      this.selected,
+      this.config,) : obj = selected;
 
   final BuildContext context;
   final ExcludeObjectController controller;
@@ -274,7 +287,11 @@ class ExcludeObjectPainter extends CustomPainter {
       if (excludeObject.excludedObjects.contains(obj.name)) {
         myCanvas.drawPath(path, paintObjExcluded);
       } else {
-        myCanvas.drawPath(path, paintObj, onTapDown: (x) => controller.onPathTapped(obj));
+        myCanvas.drawPath(
+          path,
+          paintObj,
+          onTapDown: (x) => controller.onPathTapped(obj),
+        );
         if (selected == obj) myCanvas.drawPath(path, paintSelected);
       }
     }
@@ -286,23 +303,33 @@ class ExcludeObjectPainter extends CustomPainter {
       text: 'dialogs.exclude_object.no_visualization'.tr(),
       style: Theme.of(context).textTheme.headlineMedium,
     );
-    TextPainter tp =
-        TextPainter(text: span, textAlign: TextAlign.center, textDirection: TextDirection.ltr);
-    tp.layout(
-      minWidth: 0,
-      maxWidth: maxX,
+    TextPainter tp = TextPainter(
+      text: span,
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
     );
+    tp.layout(minWidth: 0, maxWidth: maxX);
     tp.paint(canvas, Offset((maxX - tp.width) / 2, (maxY - tp.height) / 2));
   }
 
-  void drawYLines(double maxY, TouchyCanvas myCanvas, double maxX, Paint paintBg) {
+  void drawYLines(
+    double maxY,
+    TouchyCanvas myCanvas,
+    double maxX,
+    Paint paintBg,
+  ) {
     for (int i = 1; i < _maxYBed ~/ bgLineDis; i++) {
       var y = (bgLineDis * i) / _maxYBed * maxY;
       myCanvas.drawLine(Offset(0, y), Offset(maxX, y), paintBg);
     }
   }
 
-  void drawXLines(double maxX, TouchyCanvas myCanvas, double maxY, Paint paintBg) {
+  void drawXLines(
+    double maxX,
+    TouchyCanvas myCanvas,
+    double maxY,
+    Paint paintBg,
+  ) {
     for (int i = 1; i < _maxXBed ~/ bgLineDis; i++) {
       var x = (bgLineDis * i) / _maxXBed * maxX;
       myCanvas.drawLine(Offset(x, 0), Offset(x, maxY), paintBg);

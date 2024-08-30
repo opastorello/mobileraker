@@ -1,10 +1,9 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
-import 'package:common/util/extensions/iterable_extension.dart';
-import 'package:flutter/foundation.dart';
+import 'package:collection/collection.dart';
 import 'package:json_annotation/json_annotation.dart';
 
 import '../stamped_entity.dart';
@@ -16,6 +15,7 @@ part 'notification_settings.g.dart';
     "created":"",
     "lastModified":"",
     "progress": 0.25,
+    "android_progressbar": true,
     "states": ["error","printing","paused"]
     }
  */
@@ -27,10 +27,14 @@ class NotificationSettings extends StampedEntity {
     DateTime? lastModified,
     required this.progress,
     required this.states,
+    this.androidProgressbar = true,
+    this.etaSources = const {},
   }) : super(created, lastModified ?? DateTime.now());
 
   double progress;
   Set<String> states;
+  bool androidProgressbar;
+  Set<String> etaSources;
 
   NotificationSettings.fallback()
       : this(
@@ -38,6 +42,8 @@ class NotificationSettings extends StampedEntity {
           lastModified: DateTime.now(),
           progress: 0.25,
           states: const {'error', 'printing', 'paused'},
+          androidProgressbar: true,
+          etaSources: const {'slicer', 'filament'},
         );
 
   factory NotificationSettings.fromJson(Map<String, dynamic> json) =>
@@ -45,11 +51,14 @@ class NotificationSettings extends StampedEntity {
 
   Map<String, dynamic> toJson() => _$NotificationSettingsToJson(this);
 
-  NotificationSettings copyWith({double? progress, Set<String>? states}) {
+  NotificationSettings copyWith(
+      {double? progress, Set<String>? states, bool? androidProgressbar, Set<String>? etaSources}) {
     return NotificationSettings(
       created: created,
       progress: progress ?? this.progress,
       states: states ?? this.states,
+      androidProgressbar: androidProgressbar ?? this.androidProgressbar,
+      etaSources: etaSources ?? this.etaSources,
     );
   }
 
@@ -60,13 +69,21 @@ class NotificationSettings extends StampedEntity {
           other is NotificationSettings &&
           runtimeType == other.runtimeType &&
           progress == other.progress &&
-          setEquals(states, other.states);
+          androidProgressbar == other.androidProgressbar &&
+          const DeepCollectionEquality().equals(states, other.states) &&
+          const DeepCollectionEquality().equals(etaSources, other.etaSources);
 
   @override
-  int get hashCode => super.hashCode ^ progress.hashCode ^ states.hashIterable;
+  int get hashCode => Object.hashAll([
+        runtimeType,
+        progress,
+        androidProgressbar,
+        const DeepCollectionEquality().hash(states),
+        const DeepCollectionEquality().hash(etaSources),
+      ]);
 
   @override
   String toString() {
-    return 'NotificationSettings{progress: $progress, states: $states}';
+    return 'NotificationSettings{progress: $progress, states: $states, androidProgressbar: $androidProgressbar, etaSourves: $etaSources, created: $created, lastModified: $lastModified}';
   }
 }

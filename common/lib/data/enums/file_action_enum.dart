@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 import 'package:freezed_annotation/freezed_annotation.dart';
@@ -15,7 +15,8 @@ enum FileAction {
   move_file, // ignore: constant_identifier_names
   move_dir, // ignore: constant_identifier_names
   modify_file, // ignore: constant_identifier_names
-  root_update // ignore: constant_identifier_names
+  root_update, // ignore: constant_identifier_names
+  zip_files, // ignore: constant_identifier_names
   ;
 
   String toJsonEnum() => _$FileActionEnumMap[this]!;

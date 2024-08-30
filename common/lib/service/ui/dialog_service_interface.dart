@@ -1,10 +1,11 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
 import 'dart:async';
 
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -13,30 +14,32 @@ part 'dialog_service_interface.g.dart';
 mixin DialogIdentifierMixin {}
 
 enum CommonDialogs implements DialogIdentifierMixin {
+  activeMachine,
   stacktrace;
 }
 
 typedef DialogCompleter = Function(DialogResponse);
 
 class DialogRequest<T> {
-  DialogRequest({required this.type,
+  DialogRequest({
+    required this.type,
     this.title,
     this.body,
-    this.confirmBtn,
-    this.cancelBtn,
-    this.confirmBtnColor,
-    this.cancelBtnColor,
+    this.actionLabel,
+    this.dismissLabel,
+    this.actionForegroundColor,
+    this.actionBackgroundColor,
     this.barrierDismissible = true,
-    this.data});
+    this.data,
+  });
 
   final DialogIdentifierMixin type;
-
   final String? title;
   final String? body;
-  final String? confirmBtn;
-  final String? cancelBtn;
-  final Color? confirmBtnColor;
-  final Color? cancelBtnColor;
+  final String? actionLabel;
+  final String? dismissLabel;
+  final Color? actionForegroundColor;
+  final Color? actionBackgroundColor;
   final bool barrierDismissible;
   final T? data;
 
@@ -45,25 +48,34 @@ class DialogRequest<T> {
       identical(this, other) ||
       other is DialogRequest &&
           runtimeType == other.runtimeType &&
-          type == other.type &&
-          title == other.title &&
-          body == other.body &&
-          confirmBtn == other.confirmBtn &&
-          cancelBtn == other.cancelBtn &&
-          data == other.data;
+          (identical(type, other.type) || type == other.type) &&
+          (identical(title, other.title) || title == other.title) &&
+          (identical(body, other.body) || body == other.body) &&
+          (identical(actionLabel, other.actionLabel) || actionLabel == other.actionLabel) &&
+          (identical(dismissLabel, other.dismissLabel) || dismissLabel == other.dismissLabel) &&
+          (identical(actionForegroundColor, other.actionForegroundColor) ||
+              actionForegroundColor == other.actionForegroundColor) &&
+          (identical(actionBackgroundColor, other.actionBackgroundColor) ||
+              actionBackgroundColor == other.actionBackgroundColor) &&
+          (identical(barrierDismissible, other.barrierDismissible) || barrierDismissible == other.barrierDismissible) &&
+          const DeepCollectionEquality().equals(data, other.data);
 
   @override
-  int get hashCode =>
-      type.hashCode ^
-      title.hashCode ^
-      body.hashCode ^
-      confirmBtn.hashCode ^
-      cancelBtn.hashCode ^
-      data.hashCode;
+  int get hashCode => Object.hash(
+        type,
+        title,
+        body,
+        actionLabel,
+        dismissLabel,
+        actionForegroundColor,
+        actionBackgroundColor,
+        barrierDismissible,
+        const DeepCollectionEquality().hash(data),
+      );
 
   @override
   String toString() {
-    return 'DialogRequest{type: $type, title: $title, body: $body, confirmBtn: $confirmBtn, cancelBtn: $cancelBtn}';
+    return 'DialogRequest{type: $type, title: $title, body: $body, actionLabel: $actionLabel, dismissLabel: $dismissLabel}';
   }
 }
 
@@ -86,11 +98,14 @@ class DialogResponse<T> {
       identical(this, other) ||
       other is DialogResponse &&
           runtimeType == other.runtimeType &&
-          confirmed == other.confirmed &&
-          data == other.data;
+          (identical(confirmed, other.confirmed) || confirmed == other.confirmed) &&
+          const DeepCollectionEquality().equals(data, other.data);
 
   @override
-  int get hashCode => confirmed.hashCode ^ data.hashCode;
+  int get hashCode => Object.hash(
+        confirmed,
+        const DeepCollectionEquality().hash(data),
+      );
 
   @override
   String toString() {
@@ -109,10 +124,17 @@ abstract interface class DialogService {
   Future<DialogResponse?> showConfirm({
     String? title,
     String? body,
-    String? confirmBtn,
-    String? cancelBtn,
-    Color? confirmBtnColor,
-    Color? cancelBtnColor,
+    String? actionLabel,
+    String? dismissLabel,
+    Color? actionForegroundColor,
+    Color? actionBackgroundColor,
+  });
+
+  Future<DialogResponse?> showDangerConfirm({
+    String? title,
+    String? body,
+    String? actionLabel,
+    String? dismissLabel,
   });
 
   Future<DialogResponse?> show(DialogRequest request);

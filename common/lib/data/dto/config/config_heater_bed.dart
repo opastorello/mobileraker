@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
@@ -15,7 +15,7 @@ class ConfigHeaterBed with _$ConfigHeaterBed {
   const factory ConfigHeaterBed({
     required String heaterPin,
     required String sensorType,
-    required String sensorPin,
+    String? sensorPin,
     required String control,
     required double minTemp,
     required double maxTemp,

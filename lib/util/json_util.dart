@@ -1,10 +1,11 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
-List<T>? updateHistoryListInJson<T>(
-    Map<String, dynamic> inputJson, String listKey, String valueKey) {
+List<T>? updateHistoryListInJson<T>(Map<String, dynamic> inputJson,
+    String listKey,
+    String valueKey,) {
   var currentHistory = inputJson[listKey] as List<dynamic>?;
   if (currentHistory == null) {
     return null;

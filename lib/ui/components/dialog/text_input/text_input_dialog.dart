@@ -1,9 +1,10 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
 import 'package:common/service/ui/dialog_service_interface.dart';
+import 'package:common/ui/dialog/mobileraker_dialog.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -22,6 +23,7 @@ class TextInputDialogArguments with _$TextInputDialogArguments {
     String? helperText,
     String? hintText,
     String? suffixText,
+    ValueTransformer<String?>? valueTransformer,
   }) = _TextInputDialogArguments;
 }
 
@@ -30,69 +32,63 @@ class TextInputDialog extends HookWidget {
   final DialogCompleter completer;
 
   const TextInputDialog({
-    Key? key,
+    super.key,
     required this.request,
     required this.completer,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
     var formKey = useState(GlobalKey<FormBuilderState>());
+    var isValid = useState(true);
 
     var dialogArgs = request.data as TextInputDialogArguments;
 
-    return Dialog(
+    return MobilerakerDialog(
+      actionText: request.actionLabel ?? tr('general.confirm'),
+      onAction: isValid.value
+          ? () {
+              if (formKey.value.currentState!.saveAndValidate()) {
+                String formValue = formKey.value.currentState!.value['newValue'];
+                completer(DialogResponse(confirmed: true, data: formValue));
+              }
+            }
+          : null,
+      dismissText: request.dismissLabel ?? tr('general.cancel'),
+      onDismiss: () => completer(DialogResponse(confirmed: false)),
       child: FormBuilder(
         autovalidateMode: AutovalidateMode.onUserInteraction,
         key: formKey.value,
-        child: Padding(
-          padding: const EdgeInsets.all(15.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min, // To make the card compact
-            children: <Widget>[
-              Text(
-                request.title!,
-                style: Theme.of(context).textTheme.headlineSmall,
+        child: Column(
+          mainAxisSize: MainAxisSize.min, // To make the card compact
+          children: <Widget>[
+            Text(
+              request.title!,
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            FormBuilderTextField(
+              autofocus: true,
+              validator: dialogArgs.validator,
+              initialValue: dialogArgs.initialValue,
+              name: 'newValue',
+              keyboardType: TextInputType.text,
+              valueTransformer: dialogArgs.valueTransformer,
+              onChanged: (value) {
+                isValid.value = formKey.value.currentState!.saveAndValidate();
+              },
+              decoration: InputDecoration(
+                border: const UnderlineInputBorder(),
+                contentPadding: const EdgeInsets.all(8.0),
+                labelText: dialogArgs.labelText,
+                suffixText: dialogArgs.suffixText,
+                hintText: dialogArgs.hintText,
+                helperText: dialogArgs.helperText,
+                helperMaxLines: 5,
+                errorMaxLines: 5,
+                hintMaxLines: 5,
               ),
-              FormBuilderTextField(
-                autofocus: true,
-                validator: dialogArgs.validator,
-                initialValue: dialogArgs.initialValue,
-                name: 'newValue',
-                keyboardType: TextInputType.text,
-                decoration: InputDecoration(
-                  border: const UnderlineInputBorder(),
-                  contentPadding: const EdgeInsets.all(8.0),
-                  labelText: dialogArgs.labelText,
-                  suffixText: dialogArgs.suffixText,
-                  hintText: dialogArgs.hintText,
-                  helperText: dialogArgs.helperText,
-                  helperMaxLines: 5,
-                  errorMaxLines: 5,
-                  hintMaxLines: 5,
-                ),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton(
-                    onPressed: () => completer(DialogResponse(confirmed: false)),
-                    child: Text(request.cancelBtn ?? tr('general.cancel')),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      if (formKey.value.currentState!.saveAndValidate()) {
-                        String formValue = formKey.value.currentState!.value['newValue'];
-                        // if (fileExt != null) formValue += fileExt!;
-                        completer(DialogResponse(confirmed: true, data: formValue));
-                      }
-                    },
-                    child: Text(request.confirmBtn!),
-                  )
-                ],
-              )
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

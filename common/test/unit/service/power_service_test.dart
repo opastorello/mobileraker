@@ -16,15 +16,19 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
 
+import '../../test_utils.dart';
 import 'power_service_test.mocks.dart';
 
 @GenerateMocks([JsonRpcClient])
 void main() {
+  setUpAll(() => setupTestLogger());
+
   test('get Power API device List', () async {
-    String uuid = "test";
+    String uuid = 'test';
     var mockRpc = MockJsonRpcClient();
 
     when(mockRpc.addMethodListener(any, 'notify_power_changed')).thenReturn(null);
+    when(mockRpc.removeMethodListener(any, 'notify_power_changed')).thenReturn(true);
     when(mockRpc.sendJRpcMethod('machine.device_power.devices'))
         .thenAnswer((realInvocation) async => RpcResponse.fromJson(jsonDecode('''{
           "jsonrpc": "2.0",
@@ -59,10 +63,11 @@ void main() {
   });
 
   test('Get Power API Device Status', () async {
-    String uuid = "test";
+    String uuid = 'test';
     var mockRpc = MockJsonRpcClient();
 
     when(mockRpc.addMethodListener(any, 'notify_power_changed')).thenReturn(null);
+    when(mockRpc.removeMethodListener(any, 'notify_power_changed')).thenReturn(true);
     when(mockRpc.sendJRpcMethod('machine.device_power.get_device', params: {'device': 'WTF'}))
         .thenAnswer((realInvocation) async => RpcResponse.fromJson(jsonDecode('''{
       "jsonrpc": "2.0",
@@ -82,10 +87,11 @@ void main() {
   });
 
   test('Change Power API Device State', () async {
-    String uuid = "test";
+    String uuid = 'test';
     var mockRpc = MockJsonRpcClient();
 
     when(mockRpc.addMethodListener(any, 'notify_power_changed')).thenReturn(null);
+    when(mockRpc.removeMethodListener(any, 'notify_power_changed')).thenReturn(true);
     when(mockRpc.sendJRpcMethod('machine.device_power.post_device',
             params: {'device': 'WTF', 'action': 'off'}))
         .thenAnswer((realInvocation) async => RpcResponse.fromJson(jsonDecode('''{
@@ -106,11 +112,12 @@ void main() {
   });
 
   test('Notify Power method listener', () async {
-    String uuid = "test";
+    String uuid = 'test';
     var mockRpc = MockJsonRpcClient();
 
     ///TODO!!
     when(mockRpc.addMethodListener(any, 'notify_power_changed')).thenReturn(null);
+    when(mockRpc.removeMethodListener(any, 'notify_power_changed')).thenReturn(true);
     when(mockRpc.sendJRpcMethod('machine.device_power.post_device',
             params: {'device': 'WTF', 'action': 'off'}))
         .thenAnswer((realInvocation) async => RpcResponse.fromJson(jsonDecode('''{

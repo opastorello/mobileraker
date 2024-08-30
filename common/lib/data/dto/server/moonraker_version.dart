@@ -1,11 +1,9 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
 import 'package:freezed_annotation/freezed_annotation.dart';
-
-import '../../../util/logger.dart';
 
 part 'moonraker_version.freezed.dart';
 
@@ -40,9 +38,9 @@ class MoonrakerVersion with _$MoonrakerVersion {
       return MoonrakerVersion.fallback();
     }
 
-    final major = int.parse(versionNumbers[0]);
-    final minor = int.parse(versionNumbers[1]);
-    final patch = int.parse(versionNumbers[2]);
+    final major = int.tryParse(versionNumbers[0]) ?? 0;
+    final minor = int.tryParse(versionNumbers[1]) ?? 0;
+    final patch = int.tryParse(versionNumbers[2]) ?? 0;
 
     // Parse the commits and commitHash parts
     int commits = 0;
@@ -70,7 +68,6 @@ class MoonrakerVersion with _$MoonrakerVersion {
 
   // Compare two MoonrakerVersion objects based on major, minor, and patch.
   int compareTo(int major, int minor, int patch, int commits) {
-    logger.i('Comparing $this to $major.$minor.$patch-$commits');
     if (this.major != major) {
       return this.major.compareTo(major);
     } else if (this.minor != minor) {

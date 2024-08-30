@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
@@ -9,7 +9,7 @@ extension MobilerakerProviderExtension on ProviderBase {
   String toIdentityString() {
     var leading = '';
     if (from != null) {
-      leading = '($argument)';
+      leading = '($argument|${from.toString()}#${from.hashCode})';
     }
 
     var trailing = '';

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
@@ -9,12 +9,10 @@ import 'package:flutter_icons/flutter_icons.dart';
 import 'package:go_router/go_router.dart';
 
 class SupporterOnlyFeature extends StatelessWidget {
-  const SupporterOnlyFeature({
-    Key? key,
-    required this.text,
-  }) : super(key: key);
+  const SupporterOnlyFeature({super.key, required this.text, this.header});
 
   final Widget text;
+  final Widget? header;
 
   @override
   Widget build(BuildContext context) {
@@ -22,17 +20,15 @@ class SupporterOnlyFeature extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        const Icon(
-          FlutterIcons.hand_holding_heart_faw5s,
-          size: 32,
-        ),
-        SizedBox(
-          height: 8,
-        ),
-        DefaultTextStyle(
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall!,
-            child: text),
+        header ??
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8.0),
+              child: Icon(
+                FlutterIcons.hand_holding_heart_faw5s,
+                size: 32,
+              ),
+            ),
+        DefaultTextStyle(textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall!, child: text),
         TextButton(
             onPressed: () {
               context.pushNamed('supportDev');

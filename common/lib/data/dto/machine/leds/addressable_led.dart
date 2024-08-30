@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
@@ -13,6 +13,7 @@ part 'addressable_led.g.dart';
 
 @freezed
 class AddressableLed extends Led with _$AddressableLed {
+  const AddressableLed._();
   const factory AddressableLed({
     required String name,
     @PixelConverter() @JsonKey(name: 'color_data') @Default([]) List<Pixel> pixels,

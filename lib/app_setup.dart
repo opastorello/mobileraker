@@ -1,11 +1,18 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
+// ignore_for_file: prefer-match-file-name
+
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:common/data/adapters/uri_adapter.dart';
+import 'package:common/data/model/hive/dashboard_component.dart';
+import 'package:common/data/model/hive/dashboard_component_type.dart';
+import 'package:common/data/model/hive/dashboard_layout.dart';
+import 'package:common/data/model/hive/dashboard_tab.dart';
 import 'package:common/data/model/hive/gcode_macro.dart';
 import 'package:common/data/model/hive/machine.dart';
 import 'package:common/data/model/hive/macro_group.dart';
@@ -14,11 +21,15 @@ import 'package:common/data/model/hive/octoeverywhere.dart';
 import 'package:common/data/model/hive/progress_notification_mode.dart';
 import 'package:common/data/model/hive/remote_interface.dart';
 import 'package:common/data/model/hive/temperature_preset.dart';
+import 'package:common/exceptions/mobileraker_exception.dart';
 import 'package:common/service/firebase/analytics.dart';
+import 'package:common/service/firebase/auth.dart';
 import 'package:common/service/firebase/remote_config.dart';
 import 'package:common/service/machine_service.dart';
+import 'package:common/service/misc_providers.dart';
 import 'package:common/service/notification_service.dart';
 import 'package:common/service/payment_service.dart';
+import 'package:common/util/extensions/logging_extension.dart';
 import 'package:common/util/extensions/object_extension.dart';
 import 'package:common/util/logger.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -37,10 +48,14 @@ import 'package:worker_manager/worker_manager.dart';
 
 part 'app_setup.g.dart';
 
+const _hiveKeyName = 'hive_key';
+
 setupBoxes() async {
   await Hive.initFlutter();
 
-  Uint8List keyMaterial = await _hiveKey();
+  // For the key is not needed. It can be used to encrypt the data in the box. But this is not a high security app with sensitive data.
+  // Caused problems on some devices and the key is not used for hive encryption.
+  // Uint8List keyMaterial = await _hiveKey();
 
   // Ignore old/deperecates types!
   // 2 - WebcamSetting
@@ -88,77 +103,127 @@ setupBoxes() async {
     Hive.registerAdapter(nAdapter);
   }
 
+  DashboardLayoutAdapter dlAdapter = DashboardLayoutAdapter();
+  if (!Hive.isAdapterRegistered(dlAdapter.typeId)) {
+    Hive.registerAdapter(dlAdapter);
+  }
+
+  var dtAdapter = DashboardTabAdapter();
+  if (!Hive.isAdapterRegistered(dtAdapter.typeId)) {
+    Hive.registerAdapter(dtAdapter);
+  }
+
+  var dcAdapter = DashboardComponentAdapter();
+  if (!Hive.isAdapterRegistered(dcAdapter.typeId)) {
+    Hive.registerAdapter(dcAdapter);
+  }
+
+  var dctAdapter = DashboardComponentTypeAdapter();
+  if (!Hive.isAdapterRegistered(dctAdapter.typeId)) {
+    Hive.registerAdapter(dctAdapter);
+  }
+
   // Hive.deleteBoxFromDisk('printers');
 
   try {
-    await openBoxes(keyMaterial);
-    Hive.box<Machine>("printers").values.forEach((element) {
-      logger.i('Machine in box is ${element.debugStr}#${element.hashCode}');
+    // await openBoxes(keyMaterial);
+    await openBoxes();
+    Hive.box<Machine>('printers').values.forEach((element) {
+      logger.i('Machine in box is ${element.logName}#${element.hashCode}');
       // ToDo remove after machine migration!
       element.save();
     });
-  } catch (e) {
-    logger.e('There was an error while trying to init Hive. Resetting all Hive data...');
-    await Hive.deleteBoxFromDisk('printers');
-    await Hive.deleteBoxFromDisk('uuidbox');
-    await Hive.deleteBoxFromDisk('settingsbox');
-    await openBoxes(keyMaterial);
+  } catch (e, s) {
+    if (e is TypeError) {
+      logger.e('An TypeError occurred while trying to open Boxes...', e);
+      logger.e('Will reset all stored data to resolve this issue!');
+      throw MobilerakerStartupException(
+        'An unexpected TypeError occurred while parsing the stored app data. Please report this error to the developer. To resolve this issue clear the app storage or reinstall the app.',
+        parentException: e,
+        parentStack: s,
+        canResetStorage: true,
+      );
+    } else if (e is FileSystemException) {
+      logger.e('An FileSystemException(${e.runtimeType}) occured while trying to open Boxes...', e);
+      throw MobilerakerStartupException(
+        'Failed to retrieve app data from system storage. Please restart the app. If the error persists, consider clearing the storage or reinstalling the app.',
+        parentException: e,
+        parentStack: s,
+        canResetStorage: true,
+      );
+    }
+    logger.e('An unexpected error occurred while trying to open Boxes...', e);
+    rethrow;
   }
   logger.i('Completed Hive init');
 }
 
 Future<Uint8List> _hiveKey() async {
-  const keyName = 'hive_key';
 
   /// due to the move to encSharedPref it could be that the hive_key is still in the normmal shared pref
   /// Therfore first try to load it from the secureShared pref else try the normal one else generate a new one
-  var secureStorage =
-      const FlutterSecureStorage(aOptions: AndroidOptions(encryptedSharedPreferences: true));
-  const nonEncSharedPrefSecureStorage = FlutterSecureStorage();
+  var secureStorage = const FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
+  const nonEncSharedPrefSecureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: false),
+  );
 
-  Uint8List? encryptionKey;
-  try {
-    encryptionKey =
-        await secureStorage.read(key: keyName).then((value) => value?.let(base64Decode));
-  } on PlatformException catch (e) {
-    logger.e('Error while reading hive_key from secure storage', e);
-    encryptionKey = await nonEncSharedPrefSecureStorage
-        .read(key: keyName)
-        .then((value) => value?.let(base64Decode));
-    await nonEncSharedPrefSecureStorage.delete(key: keyName);
-    await secureStorage.write(key: keyName, value: encryptionKey?.let(base64Encode));
-    logger.e(
-        'Transfered hive_key from non-encryptedSharedPreferences to secureStorage using encryptedSharedPreferences');
-  }
-
+  Uint8List? encryptionKey = await _readStorage(secureStorage);
   if (encryptionKey != null) {
     return encryptionKey;
   }
 
+  encryptionKey ??= await _readStorage(nonEncSharedPrefSecureStorage);
+  if (encryptionKey != null) {
+    await secureStorage.write(key: _hiveKeyName, value: encryptionKey.let(base64Encode));
+    await nonEncSharedPrefSecureStorage.delete(key: _hiveKeyName);
+    return encryptionKey;
+  }
+
   final key = Hive.generateSecureKey();
-  await secureStorage.write(
-    key: keyName,
-    value: base64UrlEncode(key),
-  );
+  await secureStorage.write(key: _hiveKeyName, value: base64UrlEncode(key));
   return Uint8List.fromList(key);
 }
 
-Future<List<Box>> openBoxes(Uint8List keyMaterial) {
+Future<Uint8List?> _readStorage(FlutterSecureStorage storage) async {
+  try {
+    String? value = await storage.read(key: _hiveKeyName);
+    return value?.let(base64Decode);
+  } catch (e) {
+    logger.e('Error while reading $_hiveKeyName from storage', e);
+    return null;
+  }
+}
+
+// Future<List<Box>> openBoxes(Uint8List _) {
+Future<List<Box>> openBoxes() {
   return Future.wait([
     Hive.openBox<Machine>('printers').then(_migrateMachine),
     Hive.openBox<String>('uuidbox'),
     Hive.openBox('settingsbox'),
     Hive.openBox<Notification>('notifications'),
+    Hive.openBox<DashboardLayout>('dashboard_layouts'),
     // Hive.openBox<OctoEverywhere>('octo', encryptionCipher: HiveAesCipher(keyMaterial))
+  ]);
+}
+
+Future<void> deleteBoxes() {
+  logger.i('Deleting all boxes');
+  return Future.wait([
+    Hive.deleteBoxFromDisk('printers'),
+    Hive.deleteBoxFromDisk('uuidbox'),
+    Hive.deleteBoxFromDisk('settingsbox'),
+    Hive.deleteBoxFromDisk('notifications'),
+    Hive.deleteBoxFromDisk('dashboard_layouts'),
+    // Hive.deleteBoxFromDisk('octo')
   ]);
 }
 
 Future<Box<Machine>> _migrateMachine(Box<Machine> box) async {
   var allMigratedPrinters = box.values.toList();
   await box.clear();
-  await box.putAll({
-    for (var p in allMigratedPrinters) p.uuid: p,
-  });
+  await box.putAll({for (var p in allMigratedPrinters) p.uuid: p});
   return box;
 }
 
@@ -175,7 +240,9 @@ initializeAvailableMachines(Ref ref) async {
   List<Machine> machines = await ref.read(allMachinesProvider.future);
   logger.i('Received all machines');
 
-  await Future.wait(machines.map((e) => ref.read(machineProvider(e.uuid).future)));
+  await Future.wait(
+    machines.map((e) => ref.read(machineProvider(e.uuid).future)),
+  );
   logger.i('initialized all machineProviders');
   // for (var machine in machines) {
   //   logger.i('Init for ${machine.name}(${machine.uuid})');
@@ -188,6 +255,17 @@ initializeAvailableMachines(Ref ref) async {
 
 @riverpod
 Stream<StartUpStep> warmupProvider(WarmupProviderRef ref) async* {
+  logger.i('*****************************');
+  logger.i('Mobileraker is warming up...');
+
+  logger.i('Mobileraker Version: ${await ref.read(versionInfoProvider.future)}');
+  logger.i('*****************************');
+
+  // Firebase stuff
+  yield StartUpStep.firebaseCore;
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // only start listening after Firebase is initialized
   ref.listenSelf((previous, next) {
     if (next.hasError) {
       var error = next.asError!;
@@ -199,26 +277,31 @@ Stream<StartUpStep> warmupProvider(WarmupProviderRef ref) async* {
       );
     }
   });
-  // Firebase stuff
-  yield StartUpStep.firebaseCore;
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   yield StartUpStep.firebaseAppCheck;
   await FirebaseAppCheck.instance.activate();
 
   yield StartUpStep.firebaseRemoteConfig;
-  await ref.read(remoteConfigProvider).initialize();
+  await ref.read(remoteConfigInstanceProvider).initialize();
   if (kDebugMode) {
     FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(false);
   }
 
-  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterError;
+  FlutterError.onError = (FlutterErrorDetails details) {
+    if (!kDebugMode)
+      logger.e('FlutterError caught by FlutterError.onError (${details.library})', details.exception, details.stack);
+    FirebaseCrashlytics.instance.recordFlutterError(details).ignore();
+  };
   PlatformDispatcher.instance.onError = (error, stack) {
-    FirebaseCrashlytics.instance.recordError(error, stack);
+    FirebaseCrashlytics.instance.recordError(error, stack).ignore();
     return true;
   };
   yield StartUpStep.firebaseAnalytics;
   ref.read(analyticsProvider).logAppOpen().ignore();
+
+  yield StartUpStep.firebaseAuthUi;
+  // Just make sure it is created!
+  ref.read(firebaseUserProvider);
 
   setupLicenseRegistry();
 
@@ -242,9 +325,7 @@ Stream<StartUpStep> warmupProvider(WarmupProviderRef ref) async* {
   await initializeAvailableMachines(ref);
 
   yield StartUpStep.notificationService;
-  await ref
-      .read(notificationServiceProvider)
-      .initialize([AWESOME_FCM_LICENSE_ANDROID, AWESOME_FCM_LICENSE_IOS]);
+  await ref.read(notificationServiceProvider).initialize([AWESOME_FCM_LICENSE_ANDROID, AWESOME_FCM_LICENSE_IOS]);
 
   yield StartUpStep.workManager;
   await workerManager.init();
@@ -258,6 +339,7 @@ enum StartUpStep {
   firebaseAppCheck('🔎'),
   firebaseRemoteConfig('🌐'),
   firebaseAnalytics('📈'),
+  firebaseAuthUi('🔑'),
   hiveBoxes('📂'),
   easyLocalization('🌍'),
   paymentService('💸'),

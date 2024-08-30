@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
@@ -12,9 +12,11 @@ part 'controller_fan.g.dart';
 
 @freezed
 class ControllerFan extends NamedFan with _$ControllerFan {
+  const ControllerFan._();
   const factory ControllerFan({
     required String name,
     @Default(0) double speed,
+    double? rpm,
   }) = _ControllerFan;
 
   factory ControllerFan.fromJson(Map<String, dynamic> json, [String? name]) =>

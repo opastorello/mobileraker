@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
@@ -11,14 +11,14 @@ class GraphCardWithButton extends StatelessWidget {
   static const double radius = 15;
 
   const GraphCardWithButton({
-    Key? key,
+    super.key,
     this.backgroundColor,
     this.graphColor,
     required this.plotSpots,
     required this.builder,
     required this.buttonChild,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   final Color? backgroundColor;
   final Color? graphColor;
@@ -30,21 +30,16 @@ class GraphCardWithButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     var themeData = Theme.of(context);
-    var _backgroundColor =
-        backgroundColor ?? themeData.colorScheme.surfaceVariant;
-    var _graphColor = graphColor ??
-        ((Theme.of(context).brightness == Brightness.dark)
-            ? _backgroundColor.brighten(15)
-            : _backgroundColor.darken(15));
-    var _onBackgroundColor =
-        (ThemeData.estimateBrightnessForColor(_backgroundColor) ==
-                Brightness.dark
+    var bgColor = backgroundColor ?? themeData.colorScheme.surfaceVariant;
+    var gcColor =
+        graphColor ?? ((Theme.of(context).brightness == Brightness.dark) ? bgColor.brighten(15) : bgColor.darken(15));
+    var onBackgroundColor = (ThemeData.estimateBrightnessForColor(bgColor) == Brightness.dark
             ? Colors.white
                 .blendAlpha(themeData.colorScheme.primary.brighten(20), 0)
             : Colors.black
                 .blendAlpha(themeData.colorScheme.primary.brighten(20), 0));
 
-    return Container(
+    return Padding(
       padding: CardTheme.of(context).margin ?? const EdgeInsets.all(4),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -52,36 +47,33 @@ class GraphCardWithButton extends StatelessWidget {
           Container(
             alignment: Alignment.centerLeft,
             decoration: BoxDecoration(
-                color: _backgroundColor,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(radius))),
+              color: bgColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(radius)),
+            ),
             child: Stack(
               alignment: Alignment.centerLeft,
               children: [
                 // Only way i found to expand the stack completly...
-                Container(
-                  width: double.infinity,
-                ),
+                Container(width: double.infinity),
                 Positioned.fill(
                   top: radius,
                   child: _Chart(
-                    graphColor: _graphColor,
+                    graphColor: gcColor,
                     plotSpots: plotSpots,
-                  )
+                  ),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 18, 12, 12),
                   child: Theme(
-                      data: themeData.copyWith(
-                          textTheme: themeData.textTheme.apply(
-                              bodyColor: _onBackgroundColor,
-                              displayColor: _onBackgroundColor),
-                          iconTheme: themeData.iconTheme
-                              .copyWith(color: _onBackgroundColor)),
-                      child: DefaultTextStyle(
-                        style: TextStyle(color: _onBackgroundColor),
-                        child: Builder(builder: builder),
-                      )),
+                    data: themeData.copyWith(
+                      textTheme: themeData.textTheme.apply(
+                        bodyColor: onBackgroundColor,
+                        displayColor: onBackgroundColor,
+                      ),
+                      iconTheme: themeData.iconTheme.copyWith(color: onBackgroundColor),
+                    ),
+                    child: Builder(builder: builder),
+                  ),
                 ),
               ],
             ),
@@ -89,6 +81,7 @@ class GraphCardWithButton extends StatelessWidget {
           TextButton(
             style: TextButton.styleFrom(
               minimumSize: const Size.fromHeight(48),
+              maximumSize: const Size.fromHeight(48),
               padding: EdgeInsets.zero,
               shape: const RoundedRectangleBorder(
                 borderRadius:
@@ -101,7 +94,7 @@ class GraphCardWithButton extends StatelessWidget {
             ),
             onPressed: onTap,
             child: buttonChild,
-          )
+          ),
         ],
       ),
     );
@@ -110,10 +103,10 @@ class GraphCardWithButton extends StatelessWidget {
 
 class _Chart extends StatelessWidget {
   const _Chart({
-    Key? key,
+    super.key,
     required this.graphColor,
     required this.plotSpots,
-  }) : super(key: key);
+  });
 
   final Color graphColor;
 
@@ -121,14 +114,13 @@ class _Chart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     return LineChart(
       LineChartData(
-        gridData: FlGridData(show: false),
-        titlesData: FlTitlesData(show: false),
+        gridData: const FlGridData(show: false),
+        titlesData: const FlTitlesData(show: false),
         borderData: FlBorderData(show: false),
         minY: 0,
-        lineTouchData: LineTouchData(enabled: false),
+        lineTouchData: const LineTouchData(enabled: false),
         lineBarsData: [
           LineChartBarData(
             spots: plotSpots,
@@ -136,9 +128,7 @@ class _Chart extends StatelessWidget {
             isCurved: true,
             barWidth: 0,
             isStrokeCapRound: true,
-            dotData: FlDotData(
-              show: false,
-            ),
+            dotData: const FlDotData(show: false),
             belowBarData: BarAreaData(
               show: true,
               color: graphColor,
@@ -148,9 +138,9 @@ class _Chart extends StatelessWidget {
           ),
         ],
       ),
-      swapAnimationDuration: const Duration(milliseconds: 10),
+      duration: const Duration(milliseconds: 10),
       // Optional
-      swapAnimationCurve: Curves.easeInOutCubic, // Optional
+      curve: Curves.easeInOutCubic, // Optional
     );
   }
 }

@@ -1,13 +1,11 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
 import 'dart:async';
 
 import 'package:common/data/model/hive/machine.dart';
-import 'package:common/service/payment_service.dart';
-import 'package:common/service/ui/theme_service.dart';
 import 'package:common/util/logger.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -47,8 +45,6 @@ class SelectedMachineService {
 
   Stream<Machine?> get selectedMachine => _selectedMachineCtrler.stream;
 
-  ThemeService get _themeService => ref.read(themeServiceProvider);
-
   _init() {
     String? selectedUUID = _boxUuid.get('selectedPrinter');
     if (selectedUUID == null) {
@@ -69,8 +65,7 @@ class SelectedMachineService {
         _selectedMachineCtrler.add(null);
         _selected = null;
       }
-      _themeService.selectSystemThemePack();
-      logger.i("Selecting no printer as active Printer. Stream is closed?: ${_selectedMachineCtrler.isClosed}");
+      logger.i('Selecting no printer as active Printer. Stream is closed?: ${_selectedMachineCtrler.isClosed}');
       return;
     }
 
@@ -80,32 +75,7 @@ class SelectedMachineService {
     if (!_selectedMachineCtrler.isClosed) {
       _selectedMachineCtrler.add(machine);
       _selected = machine;
-
-      if (ref.read(isSupporterProvider) && machine.printerThemePack != -1) {
-        _themeService.selectThemeIndex(machine.printerThemePack);
-      } else {
-        _themeService.selectSystemThemePack();
-      }
     }
-  }
-
-  selectNextMachine() async {
-    List<Machine> list = await _machineRepo.fetchAll();
-
-    if (list.length < 2) return;
-    logger.i('Selecting next machine');
-    int indexSelected = list.indexWhere((element) => element.uuid == _selected?.uuid);
-    int next = (indexSelected + 1) % list.length;
-    selectMachine(list[next]);
-  }
-
-  selectPreviousMachine() async {
-    List<Machine> list = await _machineRepo.fetchAll();
-    if (list.length < 2) return;
-    logger.i('Selecting previous machine');
-    int indexSelected = list.indexWhere((element) => element.uuid == _selected?.uuid);
-    int prev = (indexSelected - 1 < 0) ? list.length - 1 : indexSelected - 1;
-    selectMachine(list[prev]);
   }
 
   bool isSelectedMachine(Machine toCheck) => toCheck.uuid == _boxUuid.get('selectedPrinter');

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
@@ -124,8 +124,8 @@ class WebcamInfo with _$WebcamInfo {
   }
 
   Matrix4 get transformMatrix => Matrix4.identity()
-    ..rotateX(flipHorizontal ? pi : 0)
-    ..rotateY(flipVertical ? pi : 0);
+    ..rotateX(flipVertical ? pi : 0)
+    ..rotateY(flipHorizontal ? pi : 0);
 
   bool get isReadOnly => source == 'config';
 }

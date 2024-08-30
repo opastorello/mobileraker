@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
@@ -13,27 +13,18 @@ import 'package:enum_to_string/enum_to_string.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
 part 'setting_controller.g.dart';
 
 @riverpod
-GlobalKey<FormBuilderState> settingPageFormKey(SettingPageFormKeyRef ref) =>
-    GlobalKey<FormBuilderState>();
+GlobalKey<FormBuilderState> settingPageFormKey(SettingPageFormKeyRef _) => GlobalKey<FormBuilderState>();
 
 @riverpod
-Future<PackageInfo> versionInfo(VersionInfoRef ref) async {
-  return PackageInfo.fromPlatform();
-}
-
-@riverpod
-bool boolSetting(BoolSettingRef ref, KeyValueStoreKey key, [bool fallback = false]) =>
-    ref.watch(settingServiceProvider).readBool(key, fallback);
-
-@riverpod
-Future<List<Machine>> machinesWithoutCompanion(MachinesWithoutCompanionRef ref) {
+Future<List<Machine>> machinesWithoutCompanion(
+  MachinesWithoutCompanionRef ref,
+) {
   var machineService = ref.watch(machineServiceProvider);
 
   return machineService.fetchMachinesWithoutCompanion();
@@ -41,7 +32,8 @@ Future<List<Machine>> machinesWithoutCompanion(MachinesWithoutCompanionRef ref) 
 
 final notificationPermissionControllerProvider =
     StateNotifierProvider.autoDispose<NotificationPermissionController, bool>(
-        (ref) => NotificationPermissionController(ref));
+  (ref) => NotificationPermissionController(ref),
+);
 
 class NotificationPermissionController extends StateNotifier<bool> {
   NotificationPermissionController(AutoDisposeRef ref)
@@ -62,19 +54,16 @@ class NotificationPermissionController extends StateNotifier<bool> {
 }
 
 final notificationProgressSettingControllerProvider =
-    NotifierProvider.autoDispose<NotificationProgressSettingController, ProgressNotificationMode>(
-        () {
+    NotifierProvider.autoDispose<NotificationProgressSettingController, ProgressNotificationMode>(() {
   return NotificationProgressSettingController();
 });
 
 class NotificationProgressSettingController extends AutoDisposeNotifier<ProgressNotificationMode> {
   @override
   ProgressNotificationMode build() {
-    int progressModeInt =
-        ref.watch(settingServiceProvider).readInt(AppSettingKeys.progressNotificationMode, -1);
-    var progressMode = (progressModeInt < 0)
-        ? ProgressNotificationMode.TWENTY_FIVE
-        : ProgressNotificationMode.values[progressModeInt];
+    int progressModeInt = ref.watch(settingServiceProvider).readInt(AppSettingKeys.progressNotificationMode, -1);
+    var progressMode =
+        (progressModeInt < 0) ? ProgressNotificationMode.TWENTY_FIVE : ProgressNotificationMode.values[progressModeInt];
 
     return progressMode;
   }
@@ -88,9 +77,18 @@ class NotificationProgressSettingController extends AutoDisposeNotifier<Progress
 
     List<Machine> allMachine = await ref.read(allMachinesProvider.future);
     for (var machine in allMachine) {
-      ref
-          .read(machineServiceProvider)
-          .updateMachineFcmNotificationConfig(machine: machine, mode: mode);
+      ref.read(machineServiceProvider).updateMachineFcmNotificationConfig(machine: machine, mode: mode);
+    }
+  }
+
+  void onProgressbarChanged(bool mode) async {
+    ref.read(settingServiceProvider).writeBool(AppSettingKeys.useProgressbarNotifications, mode ?? false);
+
+    // Now also propagate it to all connected machines!
+
+    List<Machine> allMachine = await ref.read(allMachinesProvider.future);
+    for (var machine in allMachine) {
+      ref.read(machineServiceProvider).updateMachineFcmNotificationConfig(machine: machine, progressbar: mode);
     }
   }
 }
@@ -105,7 +103,10 @@ class NotificationStateSettingController extends AutoDisposeNotifier<Set<PrintSt
   Set<PrintState> build() {
     return ref
         .watch(settingServiceProvider)
-        .read(AppSettingKeys.statesTriggeringNotification, 'standby,printing,paused,complete,error')
+        .read(
+          AppSettingKeys.statesTriggeringNotification,
+          'standby,printing,paused,complete,error',
+        )
         .split(',')
         .map((e) => EnumToString.fromString(PrintState.values, e) ?? PrintState.error)
         .toSet();
@@ -120,9 +121,10 @@ class NotificationStateSettingController extends AutoDisposeNotifier<Set<PrintSt
 
     List<Machine> allMachine = await ref.read(allMachinesProvider.future);
     for (var machine in allMachine) {
-      ref
-          .read(machineServiceProvider)
-          .updateMachineFcmNotificationConfig(machine: machine, printStates: state);
+      ref.read(machineServiceProvider).updateMachineFcmNotificationConfig(
+            machine: machine,
+            printStates: state,
+          );
     }
   }
 }
@@ -139,17 +141,42 @@ bool notificationFirebaseAvailable(NotificationFirebaseAvailableRef ref) {
 
 @riverpod
 class SettingPageController extends _$SettingPageController {
+  SettingService get _settingService => ref.read(settingServiceProvider);
+
+  MachineService get _machineService => ref.read(machineServiceProvider);
+
   @override
   void build() {
     return;
   }
 
-  openCompanion() async {
+  Future<void> openCompanion() async {
     const String url = 'https://github.com/Clon1998/mobileraker_companion#companion---installation';
     if (await canLaunchUrlString(url)) {
       await launchUrlString(url, mode: LaunchMode.externalApplication);
     } else {
       throw 'Could not launch $url';
+    }
+  }
+
+  Future<void> onEtaSourcesChanged(List<String>? sources) async {
+    if (sources == null) {
+      return;
+    }
+    if (sources.isEmpty) {
+      return; // We don't want to save an empty list
+    }
+
+    _settingService.writeList(AppSettingKeys.etaSources, sources);
+
+    // Now also propagate it to all connected machines!
+
+    List<Machine> allMachine = await ref.read(allMachinesProvider.future);
+    for (var machine in allMachine) {
+      _machineService.updateMachineFcmNotificationConfig(
+        machine: machine,
+        etaSources: sources,
+      );
     }
   }
 }

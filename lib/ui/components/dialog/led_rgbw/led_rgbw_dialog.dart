@@ -1,10 +1,11 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
 import 'package:common/service/setting_service.dart';
 import 'package:common/service/ui/dialog_service_interface.dart';
+import 'package:common/ui/dialog/mobileraker_dialog.dart';
 import 'package:common/util/misc.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -17,34 +18,42 @@ class LedRGBWDialog extends ConsumerWidget {
   final DialogRequest request;
   final DialogCompleter completer;
 
-  const LedRGBWDialog({Key? key, required this.request, required this.completer}) : super(key: key);
+  const LedRGBWDialog({
+    super.key,
+    required this.request,
+    required this.completer,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return ProviderScope(overrides: [
-      dialogCompleterProvider.overrideWithValue(completer),
-      dialogArgsProvider
-          .overrideWithValue(request.data as LedRGBWDialogArgument),
-      settingServiceProvider,
-      ledRGBWDialogControllerProvider
-    ], child: const _LedRGBWDialog());
+    return ProviderScope(
+      overrides: [
+        dialogCompleterProvider.overrideWithValue(completer),
+        dialogArgsProvider.overrideWithValue(request.data as LedRGBWDialogArgument),
+        settingServiceProvider,
+        ledRGBWDialogControllerProvider,
+      ],
+      child: const _LedRGBWDialog(),
+    );
   }
 }
 
 class _LedRGBWDialog extends HookConsumerWidget {
-  const _LedRGBWDialog({
-    Key? key,
-  }) : super(key: key);
+  const _LedRGBWDialog({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     LedRGBWDialogState ledRGBWDialogState =
         ref.watch(ledRGBWDialogControllerProvider);
 
+    var controller = ref.watch(ledRGBWDialogControllerProvider.notifier);
+
     var themeData = Theme.of(context);
-    return Dialog(
-        child: Padding(
-      padding: const EdgeInsets.all(15.0),
+    return MobilerakerDialog(
+      actionText: tr('general.confirm'),
+      onAction: controller.onSubmit,
+      dismissText: MaterialLocalizations.of(context).cancelButtonLabel,
+      onDismiss: controller.onCancel,
       child: Column(
         mainAxisSize: MainAxisSize.min, // To make the card compact
         children: [
@@ -60,68 +69,47 @@ class _LedRGBWDialog extends HookConsumerWidget {
                 HueRingPicker(
                   hueRingStrokeWidth: 30,
                   pickerColor: ledRGBWDialogState.selectedColor,
-                  onColorChanged: ref
-                      .watch(ledRGBWDialogControllerProvider.notifier)
-                      .onColorChange,
+                  onColorChanged: ref.watch(ledRGBWDialogControllerProvider.notifier).onColorChange,
                 ),
                 Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      '${tr('dialogs.rgbw.recent_colors')}:',
-                      style: themeData.textTheme.labelLarge,
-                    )),
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '${tr('dialogs.rgbw.recent_colors')}:',
+                    style: themeData.textTheme.labelLarge,
+                  ),
+                ),
                 Padding(
                   padding: const EdgeInsets.only(top: 4.0),
                   child: SizedBox(
                     height: 50,
                     child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        physics: const BouncingScrollPhysics(),
-                        children: ledRGBWDialogState.recentColors
-                            .map((col) => _ColorIndicator(
-                                  color: col,
-                                  onTap: ref
-                                      .watch(ledRGBWDialogControllerProvider
-                                          .notifier)
-                                      .onColorChange,
-                                ))
-                            .toList()),
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      children: ledRGBWDialogState.recentColors
+                          .map((col) => _ColorIndicator(
+                                color: col,
+                                onTap: ref.watch(ledRGBWDialogControllerProvider.notifier).onColorChange,
+                              ))
+                          .toList(),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
           const Divider(),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              TextButton(
-                onPressed: ref
-                    .watch(ledRGBWDialogControllerProvider.notifier)
-                    .onCancel,
-                child: const Text('general.cancel').tr(),
-              ),
-              TextButton(
-                onPressed: ref
-                    .watch(ledRGBWDialogControllerProvider.notifier)
-                    .onSubmit,
-                child: const Text('general.confirm').tr(),
-              )
-            ],
-          )
-          // const _Footer()
         ],
       ),
-    ));
+    );
   }
 }
 
 class _ColorIndicator extends StatelessWidget {
   const _ColorIndicator({
-    Key? key,
+    super.key,
     required this.color,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   final Color color;
   final Function(Color) onTap;

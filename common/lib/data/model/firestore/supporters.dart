@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
@@ -21,9 +21,8 @@ class Supporter with _$Supporter {
 
   Map<String, dynamic> toFirebase() {
     return {
-      "fcmToken": fcmToken,
-      "expirationDate":
-          expirationDate != null ? Timestamp.fromDate(expirationDate!) : null
+      'fcmToken': fcmToken,
+      'expirationDate': expirationDate != null ? Timestamp.fromDate(expirationDate!) : null
     };
   }
 }

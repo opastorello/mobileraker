@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
@@ -8,7 +8,6 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../network/moonraker_database_client.dart';
-import '../../../service/selected_machine_service.dart';
 import '../../model/moonraker_db/fcm/notification_settings.dart';
 import '../fcm/notification_settings_repository.dart';
 
@@ -18,13 +17,6 @@ part 'notification_settings_repository_impl.g.dart';
 NotificationSettingsRepository notificationSettingsRepository(
         NotificationSettingsRepositoryRef ref, String machineUUID) =>
     NotificationSettingsRepositoryImpl(ref, machineUUID);
-
-@riverpod
-NotificationSettingsRepository notificationSettingsRepositorySelected(
-    NotificationSettingsRepositorySelectedRef ref) {
-  return ref.watch(
-      notificationSettingsRepositoryProvider(ref.watch(selectedMachineProvider).valueOrNull!.uuid));
-}
 
 class NotificationSettingsRepositoryImpl extends NotificationSettingsRepository {
   NotificationSettingsRepositoryImpl(AutoDisposeRef ref, String machineUUID)
@@ -64,5 +56,21 @@ class NotificationSettingsRepositoryImpl extends NotificationSettingsRepository 
 
     await _databaseService.addDatabaseItem(
         'mobileraker', 'fcm.$machineId.settings.states', state.map((e) => e.name).toList());
+  }
+
+  @override
+  Future<void> updateAndroidProgressbarSettings(String machineId, bool enabled) async {
+    await _databaseService.addDatabaseItem(
+        'mobileraker', 'fcm.$machineId.settings.lastModified', DateTime.now().toIso8601String());
+
+    await _databaseService.addDatabaseItem('mobileraker', 'fcm.$machineId.settings.androidProgressbar', enabled);
+  }
+
+  @override
+  Future<void> updateEtaSourcesSettings(String machineId, List<String> sources) async {
+    await _databaseService.addDatabaseItem(
+        'mobileraker', 'fcm.$machineId.settings.lastModified', DateTime.now().toIso8601String());
+
+    await _databaseService.addDatabaseItem('mobileraker', 'fcm.$machineId.settings.etaSources', sources);
   }
 }

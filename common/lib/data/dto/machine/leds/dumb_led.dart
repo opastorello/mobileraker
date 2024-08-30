@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
@@ -13,6 +13,8 @@ part 'dumb_led.g.dart';
 
 @freezed
 class DumbLed extends Led with _$DumbLed {
+  const DumbLed._();
+
   const factory DumbLed({
     required String name,
     @PixelConverter()

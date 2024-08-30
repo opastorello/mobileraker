@@ -1,18 +1,20 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../../util/json_util.dart';
+import 'sensor_mixin.dart';
 
 part 'temperature_sensor.freezed.dart';
-
 part 'temperature_sensor.g.dart';
 
 @freezed
-class TemperatureSensor with _$TemperatureSensor {
+class TemperatureSensor with _$TemperatureSensor, SensorMixin {
+  const TemperatureSensor._();
+
   const factory TemperatureSensor({
     required String name,
     @Default(0.0) double temperature,

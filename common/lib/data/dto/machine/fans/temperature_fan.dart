@@ -1,11 +1,12 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../../../util/json_util.dart';
+import '../sensor_mixin.dart';
 import 'named_fan.dart';
 
 part 'temperature_fan.freezed.dart';
@@ -19,7 +20,7 @@ part 'temperature_fan.g.dart';
 // }
 
 @freezed
-class TemperatureFan extends NamedFan with _$TemperatureFan {
+class TemperatureFan extends NamedFan with _$TemperatureFan, SensorMixin {
   const TemperatureFan._();
 
   const factory TemperatureFan(

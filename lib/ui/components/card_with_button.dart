@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
@@ -10,26 +10,25 @@ class CardWithButton extends StatelessWidget {
   static const double radius = 15;
 
   const CardWithButton({
-    Key? key,
+    super.key,
     this.backgroundColor,
     required this.builder,
     required this.buttonChild,
-    required this.onTap,
-  }) : super(key: key);
+    this.onTap,
+    this.onLongTap,
+  });
 
   final Color? backgroundColor;
   final WidgetBuilder builder;
   final Widget buttonChild;
   final VoidCallback? onTap;
+  final VoidCallback? onLongTap;
 
   @override
   Widget build(BuildContext context) {
     var themeData = Theme.of(context);
-    var _backgroundColor =
-        backgroundColor ?? themeData.colorScheme.surfaceVariant;
-    var _onBackgroundColor =
-        (ThemeData.estimateBrightnessForColor(_backgroundColor) ==
-                Brightness.dark
+    var bgColor = backgroundColor ?? themeData.colorScheme.surfaceVariant;
+    var onBackgroundColor = (ThemeData.estimateBrightnessForColor(bgColor) == Brightness.dark
             ? Colors.white
                 .blendAlpha(themeData.colorScheme.primary.brighten(20), 0)
             : Colors.black
@@ -43,27 +42,30 @@ class CardWithButton extends StatelessWidget {
           Container(
             alignment: Alignment.centerLeft,
             decoration: BoxDecoration(
-                color: _backgroundColor,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(radius))),
+              color: bgColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(radius)),
+            ),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 18, 12, 12),
               child: Theme(
-                  data: themeData.copyWith(
-                      textTheme: themeData.textTheme.apply(
-                          bodyColor: _onBackgroundColor,
-                          displayColor: _onBackgroundColor),
-                      iconTheme: themeData.iconTheme
-                          .copyWith(color: _onBackgroundColor)),
-                  child: DefaultTextStyle(
-                    style: TextStyle(color: _onBackgroundColor),
-                    child: Builder(builder: builder),
-                  )),
+                data: themeData.copyWith(
+                  textTheme: themeData.textTheme.apply(
+                    bodyColor: onBackgroundColor,
+                    displayColor: onBackgroundColor,
+                  ),
+                  iconTheme: themeData.iconTheme.copyWith(color: onBackgroundColor),
+                ),
+                child: DefaultTextStyle(
+                  style: TextStyle(color: onBackgroundColor),
+                  child: Builder(builder: builder),
+                ),
+              ),
             ),
           ),
           TextButton(
             style: TextButton.styleFrom(
               minimumSize: const Size.fromHeight(48),
+              maximumSize: const Size.fromHeight(48),
               padding: EdgeInsets.zero,
               shape: const RoundedRectangleBorder(
                 borderRadius:
@@ -75,8 +77,9 @@ class CardWithButton extends StatelessWidget {
               disabledForegroundColor: themeData.colorScheme.onPrimary.withOpacity(0.38),
             ),
             onPressed: onTap,
+            onLongPress: onLongTap,
             child: buttonChild,
-          )
+          ),
         ],
       ),
     );

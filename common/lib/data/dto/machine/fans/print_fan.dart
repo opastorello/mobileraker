@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
@@ -12,8 +12,10 @@ part 'print_fan.g.dart';
 
 @freezed
 class PrintFan with _$PrintFan implements Fan {
+  const PrintFan._();
   const factory PrintFan({
     @Default(0) double speed,
+    double? rpm,
   }) = _PrintFan;
 
   factory PrintFan.fromJson(Map<String, dynamic> json) =>

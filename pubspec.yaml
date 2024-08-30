@@ -15,15 +15,22 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # In iOS, build-name is used as CFBundleShortVersionString while build-number used as CFBundleVersion.
 # Read more about iOS versioning at
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
-version: 2.6.4+245
+version: 2.7.3+510
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
-  flutter: '>=3.7.2'
+  sdk: '>=3.2.3 <4.0.0'
+  flutter: '>=3.16.5'
 
 
 dependency_overrides:
   intl: ^0.18.1 # required due to awesome notifications and formbuilder
+  web: ^0.5.1 # required because network info is using 0.3, but this package is only used by web which we dont build
+
+  # used by appinio_video_player, this fixes an issue with gradle
+  cached_video_player:
+    git:
+      url: https://github.com/vikram25897/flutter_cached_video_player
+      ref: feature/gradle_version_bump
 
 dependencies:
   flutter:
@@ -32,81 +39,115 @@ dependencies:
   #packages maintained by mobileraker
   mobileraker_pro:
     path: ../mobileraker_pro
+    #path: ../mobileraker_pro_public # Uncomment this line if you want to contribute to the project. Alsoo remove the line above
 
   common:
     path: common
 
-  web_socket_channel: ^2.1.0
-  http: ^0.13.4
 
   #firebase
-  firebase_core_platform_interface: ^4.8.0
-  firebase_core: ^2.15.0
-  firebase_analytics: ^10.4.4
-  firebase_app_check: ^0.1.5+1
-  firebase_crashlytics: ^3.3.4
-  firebase_remote_config: ^4.2.4
-  cloud_firestore: ^4.8.0
+  firebase_core_platform_interface: ^5.0.0
+  firebase_core: ^2.30.0
+  firebase_analytics: ^10.10.2
+  firebase_app_check: ^0.2.2+2
+  firebase_crashlytics: ^3.5.2
+  firebase_remote_config: ^4.4.2
+  cloud_firestore: ^4.17.0
+
+  firebase_auth: ^4.19.2
 
 
   #architecture
-  freezed_annotation: ^2.1.0
-  flutter_hooks: ^0.18.0
+  freezed_annotation: ^2.4.1
+  flutter_hooks: ^0.20.1
   hooks_riverpod: ^2.3.8
   riverpod_annotation: ^2.1.2
   json_annotation: ^4.7.0
 
 
   #routing
-  go_router: ^6.2.0
+  go_router: ^14.2.2
+  go_transitions: ^0.7.0
 
   #util
   rxdart: ^0.27.3
   stringr: ^1.0.0
   vector_math: ^2.1.2
   enum_to_string: ^2.0.1
-  uuid: ^3.0.5
   url_launcher: ^6.1.6
   logger: ^1.3.0
-  package_info_plus: ^3.0.1
-  permission_handler: ^10.4.3
+  permission_handler: ^11.0.0
   collection: ^1.17.0
+  fftea: ^1.5.0
+  #  mic_stream: ^0.7.1+2
+  flutter_audio_capture:
+    #    path: ../flutter_audio_capture
+    git:
+      url: https://github.com/Clon1998/flutter_audio_capture.git
+      ref: init-code
+  worker_manager: ^6.3.1
+
+
+  #crypto
+  hashlib_codecs: ^2.2.0
+  hashlib: ^1.12.0
+  pem: ^2.0.4
 
   #persisstent
   hive: ^2.2.3
   hive_flutter: ^1.1.0
-  flutter_secure_storage: ^8.0.0
+  flutter_secure_storage: ^9.0.0
   share_plus: ^7.1.0
   path_provider: ^2.1.0
 
   #theme
   cupertino_icons: ^1.0.2
-  flex_color_scheme: ^7.0.4
-  google_fonts: ^4.0.3
+  flex_color_scheme: ^7.3.1
+  google_fonts: ^6.2.0 # 6.2.0 preventing the app from building
 
 
   #notification
-  awesome_notifications: 0.7.5-dev.3
-  awesome_notifications_fcm: 0.7.5-dev.3
-  live_activities: ^1.7.5
+  awesome_notifications_core: ^0.9.3
+  awesome_notifications: ^0.9.3
+  awesome_notifications_fcm: ^0.9.3
+  #  live_activities: ^1.9.3
+  live_activities:
+    #    path: ../flutter_live_activities
+    git:
+      url: https://github.com/Clon1998/flutter_live_activities
+  #        ref: feature/multi-state-req
+
 
   #form
   flutter_form_builder: ^9.1.0
   form_builder_validators: ^9.0.0
 
   #tranlation
-  easy_localization: ^3.0.0
+  easy_localization: ^3.0.3
 
   #purchases
-  purchases_flutter: ^5.3.0
+  purchases_flutter: ^7.0.1
 
   #rating
-  rate_my_app: ^1.1.4
+  rate_my_app: ^2.0.0
+
+  #reactive UI
+  responsive_framework: ^1.4.0
 
   #ui
+  gap: ^3.0.1
+  persistent_header_adaptive: ^2.1.0
+  extended_wrap: ^0.1.5
+  overflow_view: ^0.3.1
+  flutter_reorderable_grid_view: ^4.0.0
+  flutter_staggered_grid_view: ^0.7.0
+  auto_size_text: ^3.0.0
+  snap_scroll_physics: ^0.0.1+3
+  expandable_page_view: ^1.0.17
   badges: ^3.1.1
-  easy_stepper: ^0.7.2
-  flutter_colorpicker: ^1.0.3
+  easy_stepper: ^0.8.3
+  flutter_colorpicker:
+    git: https://github.com/mchome/flutter_colorpicker.git
   percent_indicator: ^4.0.1
   flutter_icons:
     git: https://github.com/jibiel/flutter-icons.git
@@ -114,25 +155,28 @@ dependencies:
   progress_indicators: ^1.0.0
   #  pull_to_refresh: ^2.0.0
   pull_to_refresh_flutter3: ^2.0.1
-  animated_bottom_navigation_bar: ^1.2.0
+  animated_bottom_navigation_bar: 1.3.3 # 1.3.2 has a bug that causes an error to be thrown
   animations: ^2.0.5
   flip_card: ^0.7.0
   flutter_breadcrumb: ^1.0.1
-  cached_network_image: ^3.2.0
-  shimmer: ^2.0.0
+  cached_network_image: ^3.3.0
+  shimmer: ^3.0.0
   reorderables: ^0.6.0
-  flutter_speed_dial: ^6.0.0
+  flutter_speed_dial: ^7.0.0
   dots_indicator: 2.1.2
-  webview_flutter: ^4.0.6
-  fl_chart: ^0.62.0
+  webview_flutter: ^4.4.0
+  fl_chart: ^0.66.2
   flutter_slidable: ^3.0.0
   code_text_field: ^1.0.2
-  mobile_scanner: ^3.0.0
+  mobile_scanner: ^5.0.1
   touchable: ^1.0.2
   flutter_markdown: ^0.6.14
   flutter_svg: ^2.0.5
-  loader_overlay: ^2.2.0
-  appinio_video_player: ^1.2.2
+  loader_overlay: ^4.0.0
+  appinio_video_player: ^1.3.0
+  file_picker: ^8.0.7
+  geekyants_flutter_gauges: ^1.0.3
+  bottom_sheet: ^4.0.0
 
 
 #  ditredi: ^1.0.3
@@ -142,19 +186,20 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  build_runner: ^2.3.3
+  build_runner: ^2.4.9
   hive_generator: ^2.0.0
-  flutter_lints: ^2.0.0
-  freezed: ^2.2.1
+  flutter_lints: ^3.0.1
+  freezed: ^2.5.2
   mockito: ^5.3.2
   json_serializable: ^6.4.1
-  riverpod_generator: ^2.2.6
+  riverpod_generator: ^2.4.0
   # riverpod_lint makes it easier to work with Riverpod
-  riverpod_lint: ^2.0.1
+  riverpod_lint: ^2.3.10
   # import custom_lint too as riverpod_lint depends on it
-  custom_lint: ^0.5.2
+  custom_lint: ^0.6.4
   flutter_native_splash: ^2.2.19
   flutter_launcher_icons: ^0.13.1
+  dart_code_metrics_presets: ^2.5.0
 
 
 flutter_icons:
@@ -298,6 +343,7 @@ flutter:
     - assets/icon/
     - assets/translations/
     - assets/vector/
+    - assets/vector/gadget/
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see

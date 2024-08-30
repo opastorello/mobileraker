@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
@@ -31,6 +31,16 @@ class Double3PrecisionConverter extends JsonConverter<double, double> {
 
   @override
   double fromJson(double json) => json.toPrecision(3);
+
+  @override
+  double toJson(double object) => object;
+}
+
+class Double4PrecisionConverter extends JsonConverter<double, double> {
+  const Double4PrecisionConverter();
+
+  @override
+  double fromJson(double json) => json.toPrecision(4);
 
   @override
   double toJson(double object) => object;

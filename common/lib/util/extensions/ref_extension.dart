@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
@@ -13,7 +13,7 @@ extension MobilerakerAutoDispose on AutoDisposeRef {
   // Returns a stream that alwways issues the latest/cached value of the provider
   // if the provider has one, even if multiple listeners listen to the stream!
   Stream<T> watchAsSubject<T>(ProviderListenable<AsyncValue<T>> provider,
-      {bool skipLoadingOnReload = false, bool skipLoadingOnRefresh = true}) {
+      {bool skipLoadingOnReload = false, bool skipLoadingOnRefresh = true, bool asSubject = true}) {
     final ctrler = StreamController<T>();
     onDispose(() {
       ctrler.close();
@@ -39,7 +39,7 @@ extension MobilerakerAutoDispose on AutoDisposeRef {
         },
       );
       // loading: () => null);
-    }, fireImmediately: true);
+    }, fireImmediately: asSubject);
     return ctrler.stream;
   }
 
@@ -177,6 +177,49 @@ extension MobilerakerAutoDispose on AutoDisposeRef {
   ProviderSubscription<T> keepAliveExternally<T>(ProviderListenable<T> provider) {
     var providerSubscription = listen(provider, (_, __) {});
     onDispose(() => providerSubscription.close());
+    return providerSubscription;
+  }
+
+  /// Adds the ability to automatically dispose a provider
+  /// after it has not been listened to for a specified duration.
+  ///
+  /// This method creates a `KeepAliveLink` and sets a timer. If the provider is not listened
+  /// to within the specified [timeout] duration (default 30 seconds), the provider is
+  /// automatically disposed. This is useful for cleaning up resources when a provider
+  /// is no longer needed.
+  ///
+  /// Usage:
+  /// ```dart
+  /// final myProvider = Provider<int>((ref) {
+  ///   // Provider logic here
+  /// });
+  ///
+  /// final myRef = AutoDisposeRef.read(myProvider);
+  ///
+  /// final keepAliveLink = myRef.timeoutKeepAlive(Duration(seconds: 60));
+  /// // The myProvider will be automatically disposed if not listened to for 60 seconds.
+  /// ```
+  ///
+  /// Parameters:
+  /// - [timeout]: The duration of inactivity after which the provider will be disposed.
+  ///
+  /// Returns a [KeepAliveLink] that can be used to manually close the link before the timeout
+  /// if needed.
+  KeepAliveLink keepAliveFor([Duration timeout = const Duration(seconds: 30)]) {
+    var link = keepAlive();
+
+    Timer? timer;
+    onCancel(() => timer = Timer(timeout, () => link.close()));
+    onResume(() => timer?.cancel());
+    onDispose(() => timer?.cancel());
+    return link;
+  }
+}
+
+extension MobilerakerWidgetRef on WidgetRef {
+  /// Helper method to externally keep a provider alive without the need to watch it!
+  ProviderSubscription<T> keepAliveExternally<T>(ProviderListenable<T> provider) {
+    var providerSubscription = listenManual(provider, (_, __) {});
     return providerSubscription;
   }
 }

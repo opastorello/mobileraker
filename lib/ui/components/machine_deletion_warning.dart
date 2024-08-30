@@ -1,8 +1,9 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
+import 'package:common/service/app_router.dart';
 import 'package:common/service/firebase/remote_config.dart';
 import 'package:common/service/machine_service.dart';
 import 'package:common/service/payment_service.dart';
@@ -25,9 +26,11 @@ class _MachineDeletionWarningController extends _$MachineDeletionWarningControll
   @override
   int build() {
     var isSupporter = ref.watch(isSupporterProvider);
-    var maxNonSupporterMachines = ref.watch(remoteConfigProvider).maxNonSupporterMachines;
+    var maxNonSupporterMachines = ref.watch(remoteConfigIntProvider('non_suporters_max_printers'));
     var machineCount = ref.watch(allMachinesProvider.selectAs((d) => d.length)).valueOrNull ?? 0;
-    logger.i('Max allowed machines for non Supporters is $maxNonSupporterMachines');
+    logger.i(
+      'Max allowed machines for non Supporters is $maxNonSupporterMachines',
+    );
     DateTime? dismissStamp = _settingService.read(UtilityKeys.nonSupporterDismiss, null);
 
     if (isSupporter ||
@@ -37,8 +40,10 @@ class _MachineDeletionWarningController extends _$MachineDeletionWarningControll
       return -1;
     }
 
-    DateTime initialDeletionDate =
-        _settingService.read(UtilityKeys.nonSupporterMachineCleanup, DateTime.now());
+    DateTime initialDeletionDate = _settingService.read(
+      UtilityKeys.nonSupporterMachineCleanup,
+      DateTime.now(),
+    );
     return initialDeletionDate.difference(DateTime.now()).inDays;
   }
 
@@ -53,9 +58,7 @@ class _MachineDeletionWarningController extends _$MachineDeletionWarningControll
 }
 
 class MachineDeletionWarning extends ConsumerWidget {
-  const MachineDeletionWarning({
-    Key? key,
-  }) : super(key: key);
+  const MachineDeletionWarning({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -63,45 +66,45 @@ class MachineDeletionWarning extends ConsumerWidget {
 
     var themeData = Theme.of(context);
     return AnimatedSwitcher(
-        duration: kThemeAnimationDuration,
-        switchInCurve: Curves.easeInCubic,
-        switchOutCurve: Curves.easeOutCubic,
-        transitionBuilder: (child, anim) => SizeTransition(
-              sizeFactor: anim,
-              child: FadeTransition(
-                opacity: anim,
-                child: child,
-              ),
-            ),
-        child: (daysUntilDeletion > 0)
-            ? Card(
-                child: Column(
-                  children: [
-                    ListTile(
-                      dense: true,
-                      contentPadding: const EdgeInsets.only(top: 3, left: 16, right: 16),
-                      title: const Text('components.machine_deletion_warning.title').tr(),
-                      subtitle: const Text('components.machine_deletion_warning.subtitle').tr(
-                          args: [
-                            ref.read(remoteConfigProvider).maxNonSupporterMachines.toString(),
-                            daysUntilDeletion.toString()
-                          ]),
-                      trailing: IconButton(
-                          onPressed:
-                              ref.read(_machineDeletionWarningControllerProvider.notifier).dismiss,
-                          icon: const Icon(Icons.close)),
+      duration: kThemeAnimationDuration,
+      switchInCurve: Curves.easeInCubic,
+      switchOutCurve: Curves.easeOutCubic,
+      transitionBuilder: (child, anim) => SizeTransition(
+        sizeFactor: anim,
+        child: FadeTransition(opacity: anim, child: child),
+      ),
+      child: (daysUntilDeletion > 0)
+          ? Card(
+              child: Column(
+                children: [
+                  ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.only(top: 3, left: 16, right: 16),
+                    title: const Text(
+                      'components.machine_deletion_warning.title',
+                    ).tr(),
+                    subtitle: const Text(
+                      'components.machine_deletion_warning.subtitle',
+                    ).tr(args: [
+                      ref.read(remoteConfigIntProvider('non_suporters_max_printers')).toString(),
+                      daysUntilDeletion.toString(),
+                    ]),
+                    trailing: IconButton(
+                      onPressed: ref.read(_machineDeletionWarningControllerProvider.notifier).dismiss,
+                      icon: const Icon(Icons.close),
                     ),
-                    TextButton(
-                        onPressed: ref
-                            .read(_machineDeletionWarningControllerProvider.notifier)
-                            .navigateToSupporterPage,
-                        child: const Text(
-                          'components.supporter_only_feature.button',
-                          style: TextStyle(fontSize: 11),
-                        ).tr())
-                  ],
-                ),
-              )
-            : const SizedBox.shrink());
+                  ),
+                  TextButton(
+                    onPressed: ref.read(_machineDeletionWarningControllerProvider.notifier).navigateToSupporterPage,
+                    child: const Text(
+                      'components.supporter_only_feature.button',
+                      style: TextStyle(fontSize: 11),
+                    ).tr(),
+                  ),
+                ],
+              ),
+            )
+          : const SizedBox.shrink(),
+    );
   }
 }

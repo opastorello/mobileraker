@@ -1,14 +1,12 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
-import 'dart:ui';
 
+import 'package:common/common.dart';
 import 'package:common/data/dto/files/folder.dart';
 import 'package:common/data/dto/files/gcode_file.dart';
 import 'package:common/data/dto/files/generic_file.dart';
@@ -17,24 +15,26 @@ import 'package:common/data/dto/files/moonraker/file_roots.dart';
 import 'package:common/data/dto/files/remote_file_mixin.dart';
 import 'package:common/data/dto/jrpc/rpc_response.dart';
 import 'package:common/data/enums/file_action_enum.dart';
+import 'package:common/data/model/sort_configuration.dart';
 import 'package:common/exceptions/file_fetch_exception.dart';
-import 'package:common/exceptions/mobileraker_exception.dart';
+import 'package:common/network/dio_provider.dart';
 import 'package:common/network/json_rpc_client.dart';
 import 'package:common/util/extensions/async_ext.dart';
 import 'package:common/util/extensions/ref_extension.dart';
-import 'package:common/util/extensions/uri_extension.dart';
 import 'package:common/util/logger.dart';
+import 'package:common/util/path_utils.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:rxdart/rxdart.dart';
-import 'package:worker_manager/worker_manager.dart';
 
+import '../../data/dto/files/moonraker/file_item.dart';
+import '../../data/model/file_operation.dart';
+import '../../network/http_client_factory.dart';
 import '../../network/jrpc_client_provider.dart';
-import '../machine_service.dart';
 import '../selected_machine_service.dart';
 
 part 'file_service.freezed.dart';
@@ -42,113 +42,147 @@ part 'file_service.g.dart';
 
 typedef FileListChangedListener = Function(Map<String, dynamic> item, Map<String, dynamic>? srcItem);
 
+const bakupFileExtensions = {'bak', 'backup'};
+
+const gcodeFileExtensions = {'gcode', 'g', 'gc', 'gco'};
+
+const configFileExtensions = {'conf', 'cfg'};
+
+const textFileExtensions = {'md', 'txt', 'log', 'json', 'xml', 'yaml', 'yml'};
+
+const imageFileExtensions = {'jpeg', 'jpg', 'png'};
+
+const videoFileExtensions = {'mp4'};
+
+const archiveFileExtensions = {'zip', 'tar', 'gz', '7z'};
+
 @freezed
 class FolderContentWrapper with _$FolderContentWrapper {
+  const FolderContentWrapper._();
+
   const factory FolderContentWrapper(
     String folderPath, [
     @Default([]) List<Folder> folders,
     @Default([]) List<RemoteFile> files,
   ]) = _FolderContentWrapper;
+
+  /// Returns if the folder has no content
+  bool get isEmpty => folders.isEmpty && files.isEmpty;
+
+  /// Returns if the folder has any content
+  bool get isNotEmpty => !isEmpty;
+
+  /// Returns if the folder has any content
+  bool get hasContent => folders.isNotEmpty || files.isNotEmpty;
+
+  /// Returns the total amount of items in the folder
+  int get totalItems => folders.length + files.length;
+
+  /// Returns a list of all files and folders in the folder
+  List<RemoteFile> get unwrapped => [...folders, ...files];
+
+  /// Returns a list of all file names in the folder. Including folders and files
+  List<String> get folderFileNames => unwrapped.map((e) => e.name).toList();
+}
+
+@riverpod
+CacheManager httpCacheManager(HttpCacheManagerRef ref, String machineUUID) {
+  final clientType = ref.watch(jrpcClientTypeProvider(machineUUID));
+  final baseOptions = ref.watch(baseOptionsProvider(machineUUID, clientType));
+  final httpClientFactory = ref.watch(httpClientFactoryProvider);
+
+  final HttpClient httpClient = httpClientFactory.fromBaseOptions(baseOptions);
+  ref.onDispose(httpClient.close);
+
+  return CacheManager(
+    Config(
+      '${DefaultCacheManager.key}-http',
+      fileService: HttpFileService(
+        httpClient: IOClient(httpClient),
+      ),
+    ),
+  );
 }
 
 @riverpod
 Uri? previewImageUri(PreviewImageUriRef ref) {
   var machine = ref.watch(selectedMachineProvider).valueOrFullNull;
-  var clientType = (machine != null) ? ref.watch(jrpcClientTypeProvider(machine.uuid)) : ClientType.local;
-  if (machine != null) {
-    return switch (clientType) {
-      ClientType.octo => machine.octoEverywhere?.uri,
-      ClientType.manual => machine.remoteInterface?.remoteUri,
-      ClientType.local || _ => machine.httpUri,
-    };
-  }
-  return null;
+
+  if (machine == null) return null;
+
+  var dio = ref.watch(dioClientProvider(machine.uuid));
+
+  return Uri.tryParse(dio.options.baseUrl);
 }
 
 @riverpod
 Map<String, String> previewImageHttpHeader(PreviewImageHttpHeaderRef ref) {
   var machine = ref.watch(selectedMachineProvider).valueOrFullNull;
+  if (machine == null) return {};
 
-  var clientType = (machine != null) ? ref.watch(jrpcClientTypeProvider(machine.uuid)) : ClientType.local;
-  if (machine != null) {
-    return switch (clientType) {
-      ClientType.manual => {
-          if (machine.apiKey?.isNotEmpty == true) 'X-Api-Key': machine.apiKey!,
-          ...machine.remoteInterface!.httpHeaders,
-        },
-      ClientType.octo => {
-          ...machine.headerWithApiKey,
-          HttpHeaders.authorizationHeader: machine.octoEverywhere!.basicAuthorizationHeader,
-        },
-      _ => machine.headerWithApiKey,
-    };
-  }
-  return {};
-}
-
-@riverpod
-FileService _fileServicee(_FileServiceeRef ref, String machineUUID, ClientType type) {
-  var machine = ref.watch(machineProvider(machineUUID)).valueOrNull;
-
-  if (machine == null) {
-    throw MobilerakerException('Machine with UUID "$machineUUID" was not found!');
-  }
-
-  var jsonRpcClient = ref.watch(jrpcClientProvider(machineUUID));
-
-  switch (type) {
-    case ClientType.octo:
-      var octoEverywhere = machine.octoEverywhere;
-      if (octoEverywhere == null) {
-        throw ArgumentError('The provided machine,$machineUUID does not offer OctoEverywhere');
-      }
-      return FileService(
-        ref,
-        machineUUID,
-        jsonRpcClient,
-        octoEverywhere.uri
-            .replace(userInfo: '${octoEverywhere.authBasicHttpUser}:${octoEverywhere.authBasicHttpPassword}'),
-        machine.headerWithApiKey,
-      );
-    case ClientType.manual:
-      var remoteInterface = machine.remoteInterface!;
-
-      return FileService(
-        ref,
-        machineUUID,
-        jsonRpcClient,
-        remoteInterface.remoteUri.replace(path: machine.httpUri.path, query: machine.httpUri.query),
-        {
-          if (machine.apiKey?.isNotEmpty == true) 'X-Api-Key': machine.apiKey!,
-          ...remoteInterface.httpHeaders,
-        },
-      );
-
-    case ClientType.local:
-    default:
-      return FileService(ref, machineUUID, jsonRpcClient, machine.httpUri, machine.headerWithApiKey);
-  }
+  var dio = ref.watch(dioClientProvider(machine.uuid));
+  return dio.options.headers.cast<String, String>();
 }
 
 @riverpod
 FileService fileService(FileServiceRef ref, String machineUUID) {
-  var clientType = ref.watch(jrpcClientTypeProvider(machineUUID));
+  var dio = ref.watch(dioClientProvider(machineUUID));
+  var jsonRpcClient = ref.watch(jrpcClientProvider(machineUUID));
 
-  return ref.watch(_fileServiceeProvider(machineUUID, clientType));
+  return FileService(ref, machineUUID, jsonRpcClient, dio);
 }
 
 @riverpod
-Stream<FileActionResponse> fileNotifications(FileNotificationsRef ref, String machineUUID) {
+Stream<FileActionResponse> _rawFileNotifications(_RawFileNotificationsRef ref, String machineUUID, [String? path]) {
   return ref.watch(fileServiceProvider(machineUUID)).fileNotificationStream;
 }
 
 @riverpod
+Stream<FileActionResponse> fileNotifications(FileNotificationsRef ref, String machineUUID, [String? path]) {
+  StreamController<FileActionResponse> streamController = StreamController();
+  ref.onDispose(streamController.close);
+
+  if (path != null) {
+    // This code checks if the notification is related to the provided path
+    // This means:
+    // 1. If the path is the same as the notification path
+    // 2. If an item in the path is a child of the notification path
+
+    ref.listen(
+        _rawFileNotificationsProvider(machineUUID),
+        (prev, next) => next.whenData((notification) {
+              // Original File (Src)
+              FileItem? srcItem = notification.sourceItem;
+              var srcItemWithInLevel = isWithin(path, srcItem?.fullPath ?? '');
+              // Destination File (Dest)
+              FileItem destItem = notification.item;
+              var itemWithInLevel = isWithin(path, destItem.fullPath);
+
+              // Check if src or dest are in current path (Items moved in/out of current folder)
+              // if the src is the same as the current path (Current folder was modified)
+              if (itemWithInLevel != 0 &&
+                  srcItemWithInLevel != 0 &&
+                  srcItem?.fullPath != path &&
+                  destItem.fullPath != path) {
+                return;
+              }
+              if (!streamController.isClosed) {
+                streamController.add(notification);
+              }
+            }));
+  }
+
+  return streamController.stream;
+}
+
+@riverpod
 FileService fileServiceSelected(FileServiceSelectedRef ref) {
-  return ref.watch(fileServiceProvider(ref.watch(selectedMachineProvider).valueOrNull!.uuid));
+  return ref.watch(fileServiceProvider(ref.watch(selectedMachineProvider).requireValue!.uuid));
 }
 
 @riverpod
 Stream<FileActionResponse> fileNotificationsSelected(FileNotificationsSelectedRef ref) async* {
+  ref.keepAliveFor();
   try {
     var machine = await ref.watch(selectedMachineProvider.future);
     if (machine == null) return;
@@ -158,27 +192,50 @@ Stream<FileActionResponse> fileNotificationsSelected(FileNotificationsSelectedRe
   }
 }
 
+@riverpod
+Future<FolderContentWrapper> fileApiResponse(FileApiResponseRef ref, String machineUUID, String path) async {
+  ref.keepAliveFor();
+  // Invalidation of the cache is done by the fileNotificationsProvider
+  ref.listen(fileNotificationsProvider(machineUUID, path), (prev, next) => next.whenData((d) => ref.invalidateSelf()));
+
+  final fetchDirectoryInfo = await ref.watch(fileServiceProvider(machineUUID)).fetchDirectoryInfo(path, true);
+  return fetchDirectoryInfo;
+}
+
+@riverpod
+Future<FolderContentWrapper> moonrakerFolderContent(
+    MoonrakerFolderContentRef ref, String machineUUID, String path, SortConfiguration sortConfig) async {
+  ref.keepAliveFor();
+  ref.listen(fileNotificationsProvider(machineUUID, path), (prev, next) => next.whenData((d) => ref.invalidateSelf()));
+  // await Future.delayed(const Duration(milliseconds: 5000));
+  final apiResponse = await ref.watch(fileApiResponseProvider(machineUUID, path).future);
+
+
+  List<Folder> folders = apiResponse.folders.toList();
+  List<RemoteFile> files = apiResponse.files.toList();
+
+  final comp = sortConfig.comparator;
+
+  files.sort(comp);
+  folders.sort(comp);
+  return FolderContentWrapper(apiResponse.folderPath, folders, files);
+}
+
 /// The FileService handles all file changes of the different roots of moonraker
 /// For more information check out
 /// 1. https://moonraker.readthedocs.io/en/latest/web_api/#file-operations
 /// 2. https://moonraker.readthedocs.io/en/latest/web_api/#file-list-changed
 class FileService {
-  FileService(AutoDisposeRef ref, this._machineUUID, this._jRpcClient, this.httpUri, this.headers)
-      : _downloadReceiverPortName = 'downloadFilePort-${httpUri.hashCode}' {
-    // var downloadManager = DownloadManager.instance;
-
-    // We need an mobileraker HTTP client
-    // downloadManager.init();
-
+  FileService(AutoDisposeRef ref, this._machineUUID, this._jRpcClient, this._dio)
+      : _downloadReceiverPortName = 'downloadFilePort-${_machineUUID.hashCode}',
+        _apiRequestTimeout =
+            _jRpcClient.timeout > const Duration(seconds: 30) ? _jRpcClient.timeout : const Duration(seconds: 30) {
     ref.onDispose(dispose);
-    _jRpcClient.addMethodListener(_onFileListChanged, "notify_filelist_changed");
+    ref.listen(jrpcMethodEventProvider(_machineUUID, 'notify_filelist_changed'), _onFileListChanged);
   }
 
   final String _machineUUID;
   final String _downloadReceiverPortName;
-
-  final Uri httpUri;
-  final Map<String, String> headers;
 
   final StreamController<FileActionResponse> _fileActionStreamCtrler = StreamController();
 
@@ -186,11 +243,15 @@ class FileService {
 
   final JsonRpcClient _jRpcClient;
 
+  final Dio _dio;
+
+  final Duration _apiRequestTimeout;
+
   Future<List<FileRoot>> fetchRoots() async {
-    logger.i('Fetching roots');
+    logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] Fetching roots');
 
     try {
-      RpcResponse blockingResp = await _jRpcClient.sendJRpcMethod('server.files.roots');
+      RpcResponse blockingResp = await _jRpcClient.sendJRpcMethod('server.files.roots', timeout: _apiRequestTimeout);
 
       List<dynamic> rootsResponse = blockingResp.result as List;
       return List.generate(rootsResponse.length, (index) {
@@ -198,139 +259,259 @@ class FileService {
         return FileRoot.fromJson(element);
       });
     } on JRpcError catch (e) {
-      logger.w('Error while fetching roots', e);
-      throw FileFetchException(e.toString());
+      logger.w('[FileService($_machineUUID, ${_jRpcClient.uri})] Error while fetching roots', e);
+      throw FileFetchException('Jrpc error while trying to fetch roots.', parent: e);
     }
   }
 
   Future<FolderContentWrapper> fetchDirectoryInfo(String path, [bool extended = false]) async {
-    logger.i('Fetching for `$path` [extended:$extended]');
+    logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] Fetching for `$path` [extended:$extended]');
 
     try {
-      RpcResponse blockingResp =
-          await _jRpcClient.sendJRpcMethod('server.files.get_directory', params: {'path': path, 'extended': extended});
+      RpcResponse blockingResp = await _jRpcClient.sendJRpcMethod(
+        'server.files.get_directory',
+        params: {'path': path, 'extended': extended},
+        timeout: _apiRequestTimeout,
+      );
 
       Set<String>? allowedFileType;
 
       if (path.startsWith('gcodes')) {
-        allowedFileType = {
-          '.gcode',
-          '.g',
-          '.gc',
-          '.gco',
-        };
+        allowedFileType = {...gcodeFileExtensions, ...bakupFileExtensions, ...archiveFileExtensions};
       } else if (path.startsWith('config')) {
-        allowedFileType = {'.conf', '.cfg', '.md', '.bak', '.txt'};
+        allowedFileType = {
+          ...configFileExtensions,
+          ...textFileExtensions,
+          ...bakupFileExtensions,
+          ...imageFileExtensions,
+          ...archiveFileExtensions,
+        };
       } else if (path.startsWith('timelapse')) {
-        allowedFileType = {'.mp4'};
+        allowedFileType = videoFileExtensions;
       }
 
       return _parseDirectory(blockingResp, path, allowedFileType);
     } on JRpcError catch (e) {
-      throw FileFetchException(e.toString(), reqPath: path);
+      throw FileFetchException('Jrpc error while trying to fetch directory.', reqPath: path, parent: e);
     }
   }
 
   Future<GCodeFile> getGCodeMetadata(String filename) async {
-    logger.i('Getting meta for file: `$filename`');
+    logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] Getting meta for file: `$filename`');
+
+    final parentPathParts = filename.split('/')
+      ..removeLast()
+      ..insert(0, 'gcodes'); // we need to add the gcodes here since the getMetaInfo omits gcodes path.
+    final parentPath = parentPathParts.join('/');
 
     try {
-      RpcResponse blockingResp =
-          await _jRpcClient.sendJRpcMethod('server.files.metadata', params: {'filename': filename});
+      RpcResponse blockingResp = await _jRpcClient.sendJRpcMethod('server.files.metadata',
+          params: {'filename': filename}, timeout: _apiRequestTimeout);
 
-      return _parseFileMeta(blockingResp, filename);
+      return GCodeFile.fromJson(blockingResp.result, parentPath);
     } on JRpcError catch (e) {
-      throw FileFetchException(e.toString(), reqPath: filename);
+      if (e.message.contains('Metadata not available for')) {
+        logger.w('[FileService($_machineUUID, ${_jRpcClient.uri})] Metadata not available for $filename');
+        return GCodeFile(name: filename, parentPath: parentPath, modified: -1, size: -1);
+      }
+
+      throw FileFetchException('Jrpc error while trying to get metadata.', reqPath: filename, parent: e);
     }
   }
 
   Future<FileActionResponse> createDir(String filePath) async {
-    logger.i('Creating Folder "$filePath"');
+    logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] Creating Folder "$filePath"');
 
-    var rpcResponse = await _jRpcClient.sendJRpcMethod('server.files.post_directory', params: {'path': filePath});
-    return FileActionResponse.fromJson(rpcResponse.result);
+    try {
+      final rpcResponse = await _jRpcClient.sendJRpcMethod('server.files.post_directory',
+          params: {'path': filePath}, timeout: _apiRequestTimeout);
+      return FileActionResponse.fromJson(rpcResponse.result);
+    } on JRpcError catch (e) {
+      throw FileActionException('Jrpc error while trying to create directory.', reqPath: filePath, parent: e);
+    }
   }
 
   Future<FileActionResponse> deleteFile(String filePath) async {
-    logger.i('Deleting File "$filePath"');
+    logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] Deleting File "$filePath"');
 
-    RpcResponse rpcResponse = await _jRpcClient.sendJRpcMethod('server.files.delete_file', params: {'path': filePath});
-    return FileActionResponse.fromJson(rpcResponse.result);
+    try {
+      RpcResponse rpcResponse = await _jRpcClient.sendJRpcMethod('server.files.delete_file',
+          params: {'path': filePath}, timeout: _apiRequestTimeout);
+      return FileActionResponse.fromJson(rpcResponse.result);
+    } on JRpcError catch (e) {
+      throw FileActionException('Jrpc error while trying to delete file.', reqPath: filePath, parent: e);
+    }
   }
 
   Future<FileActionResponse> deleteDirForced(String filePath) async {
-    logger.i('Deleting Folder-Forced "$filePath"');
-
-    RpcResponse rpcResponse =
-        await _jRpcClient.sendJRpcMethod('server.files.delete_directory', params: {'path': filePath, 'force': true});
-    return FileActionResponse.fromJson(rpcResponse.result);
+    logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] Deleting Folder-Forced "$filePath"');
+    try {
+      RpcResponse rpcResponse =
+          await _jRpcClient.sendJRpcMethod('server.files.delete_directory', params: {'path': filePath, 'force': true});
+      return FileActionResponse.fromJson(rpcResponse.result);
+    } on JRpcError catch (e) {
+      throw FileActionException('Jrpc error while trying to force-delete directory.', reqPath: filePath, parent: e);
+    }
   }
 
   Future<FileActionResponse> moveFile(String origin, String destination) async {
-    logger.i('Moving file from $origin to $destination');
+    logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] Moving file from $origin to $destination');
 
-    RpcResponse rpcResponse =
-        await _jRpcClient.sendJRpcMethod('server.files.move', params: {'source': origin, 'dest': destination});
-    return FileActionResponse.fromJson(rpcResponse.result);
+    try {
+      RpcResponse rpcResponse = await _jRpcClient.sendJRpcMethod('server.files.move',
+          params: {'source': origin, 'dest': destination}, timeout: _apiRequestTimeout);
+      return FileActionResponse.fromJson(rpcResponse.result);
+    } on JRpcError catch (e) {
+      throw FileActionException('Jrpc error while trying to move file.', reqPath: origin, parent: e);
+    }
   }
 
-  // Throws TimeOut exception, if file download took to long!
-  Stream<FileDownload> downloadFile({required String filePath, Duration? timeout, bool overWriteLocal = false}) async* {
-    final downloadUri = httpUri.replace(path: 'server/files/$filePath');
+  Future<FileActionResponse> copyFile(String origin, String destination) async {
+    logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] Copying file from $origin to $destination');
+
+    try {
+      RpcResponse rpcResponse = await _jRpcClient.sendJRpcMethod('server.files.copy',
+          params: {'source': origin, 'dest': destination}, timeout: _apiRequestTimeout);
+      return FileActionResponse.fromJson(rpcResponse.result);
+    } on JRpcError catch (e) {
+      throw FileActionException('Jrpc error while trying to copy file.', reqPath: origin, parent: e);
+    }
+  }
+
+  Future<FileItem> zipFiles(String? destination, List<String> origins, [bool compress = true]) async {
+    assert(origins.isNotEmpty, 'At least one origin needs to be provided');
+    assert(destination == null || destination.endsWith('.zip'), 'Destination needs to end with .zip if provided');
+
+    logger.i(
+        '[FileService($_machineUUID, ${_jRpcClient.uri})] Creating zip(compression=$compress) file at $destination from $origins');
+
+    try {
+      RpcResponse rpcResponse = await _jRpcClient.sendJRpcMethod(
+        'server.files.zip',
+        params: {'dest': destination, 'items': origins, 'store_only': !compress},
+        timeout: _apiRequestTimeout,
+      );
+      return FileItem.fromJson(rpcResponse.result['destination']);
+    } on JRpcError catch (e) {
+      throw FileActionException('Jrpc error while trying to zip files.', reqPath: destination, parent: e);
+    }
+  }
+
+  Stream<FileOperation> downloadFile({required String filePath, bool overWriteLocal = false}) async* {
     final tmpDir = await getTemporaryDirectory();
-    final File file = File('${tmpDir.path}/$_machineUUID}/$filePath');
-    final Map<String, String> isolateSafeHeaders = Map.from(headers);
-    final String isolateSafePortName = _downloadReceiverPortName;
-    logger.i('Will try to download $filePath to file $file from uri ${downloadUri.obfuscate()}');
+    final File file = File('${tmpDir.path}/$_machineUUID/$filePath');
+    final StreamController<FileOperation> updateProgress = StreamController();
+    final token = CancelToken();
 
-    final ReceivePort receiverPort = ReceivePort();
-    IsolateNameServer.registerPortWithName(receiverPort.sendPort, isolateSafePortName);
+    logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] Starting download of $filePath to ${file.path}');
 
-    var download = workerManager.execute<FileDownload>(() async {
-      await setupIsolateLogger();
-      logger.i('Hello from worker ${file.path} - my port will be: $isolateSafePortName');
-      var port = IsolateNameServer.lookupPortByName(isolateSafePortName)!;
+    Completer<bool>? debounceKeepAlive;
+    // I can not await this because I need to use the callbacks to fill my streamController
+    _dio.download(
+      '/server/files/$filePath',
+      file.path,
+      cancelToken: token,
+      onReceiveProgress: (received, total) {
+        if (total <= 0) {
+          // logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] Download is alive... no total, ${debounceKeepAlive?.isCompleted}');
+          // Debounce the keep alive to not spam the stream
+          if (debounceKeepAlive == null || debounceKeepAlive?.isCompleted == true) {
+            debounceKeepAlive = Completer();
+            Future.delayed(const Duration(seconds: 1), () {
+              debounceKeepAlive?.complete(true);
+            });
+            updateProgress.add(FileOperationKeepAlive(token: token));
+          }
+          return;
+        }
+        // logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] Progress for $filePath: ${received / total * 100}');
+        updateProgress.add(FileOperationProgress(received / total, token: token));
+      },
+    ).then((response) {
+      logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] Download of "$filePath" completed');
+      updateProgress.add(FileDownloadComplete(file, token: token));
+    }).catchError((e, s) {
+      if (e case DioException(type: DioExceptionType.cancel)) {
+        logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] Download of "$filePath" was canceled');
+        updateProgress.add(FileOperationCanceled(token: token));
+      } else {
+        logger.e(
+            '[FileService($_machineUUID, ${_jRpcClient.uri})] Error while downloading file "$filePath" caught in catchError',
+            e);
+        updateProgress.addError(e, s);
+      }
+    }).whenComplete(updateProgress.close);
 
-      return await isolateDownloadFile(
-          port: port,
-          targetUri: downloadUri,
-          downloadPath: file.path,
-          headers: isolateSafeHeaders,
-          timeout: timeout,
-          overWriteLocal: overWriteLocal);
-    });
-    download.whenComplete(() {
-      logger.i('File download done, cleaning up port');
-      IsolateNameServer.removePortNameMapping(isolateSafePortName);
-    });
-
-    yield* receiverPort.takeUntil(download.asStream()).cast<FileDownload>();
-    receiverPort.close();
-    logger.i('Closed the port');
-    yield await download;
+    yield* updateProgress.stream;
+    logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] File download completed');
   }
 
-  Future<FileActionResponse> uploadAsFile(String filePath, String content) async {
-    assert(!filePath.startsWith('(gcodes|config)'), 'filePath needs to contain root folder config or gcodes!');
+  Stream<FileOperation> uploadFile(String filePath, MultipartFile uploadContent) async* {
+    assert(!filePath.startsWith(r'(gcodes|config)'), 'filePath needs to contain root folder config or gcodes!');
     List<String> fileSplit = filePath.split('/');
     String root = fileSplit.removeAt(0);
+    final data = FormData.fromMap({'root': root, 'file': uploadContent});
 
-    Uri uri = httpUri.replace(path: 'server/files/upload');
-    ;
-    logger.i('Trying upload of $filePath');
-    http.MultipartRequest multipartRequest = http.MultipartRequest('POST', uri)
-      ..files.add(http.MultipartFile.fromString('file', content, filename: fileSplit.join('/')))
-      ..fields['root'] = root;
-    http.StreamedResponse streamedResponse = await multipartRequest.send();
-    http.Response response = await http.Response.fromStream(streamedResponse);
+    final StreamController<FileOperation> updateStream = StreamController();
+    final token = CancelToken();
 
-    if (response.statusCode != 201) {
-      throw HttpException('Error while uploading file $filePath.', uri: uri);
-    }
-    return FileActionResponse.fromJson(jsonDecode(response.body));
+    logger.i(
+        '[FileService($_machineUUID, ${_jRpcClient.uri})] Starting upload of ${uploadContent.filename ?? 'unknown'} to $filePath');
+
+    Completer<bool>? debounceKeepAlive;
+
+    _dio.post(
+      '/server/files/upload',
+      data: data,
+      options: Options(validateStatus: (status) => status == 201, receiveTimeout: _apiRequestTimeout)
+        ..disableRetry = true,
+      cancelToken: token,
+      onSendProgress: (sent, total) {
+        if (total <= 0) {
+          // logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] Download is alive... no total, ${debounceKeepAlive?.isCompleted}');
+          // Debounce the keep alive to not spam the stream
+          if (debounceKeepAlive == null || debounceKeepAlive?.isCompleted == true) {
+            debounceKeepAlive = Completer();
+            Future.delayed(const Duration(seconds: 1), () {
+              debounceKeepAlive?.complete(true);
+            });
+            updateStream.add(FileOperationKeepAlive(token: token));
+          }
+          return;
+        }
+        // logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] Progress for $filePath: ${received / total * 100}');
+        updateStream.add(FileOperationProgress(sent / total, token: token));
+      },
+    ).then((response) {
+      final res = FileActionResponse.fromJson(response.data);
+      logger.i(
+          '[FileService($_machineUUID, ${_jRpcClient.uri})] Upload of ${uploadContent.filename ?? 'unknown'} to $filePath completed');
+      logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] Response: $res');
+
+      updateStream.add(FileUploadComplete(res.item.fullPath, token: token));
+    }).catchError((e, s) {
+      if (e case DioException(type: DioExceptionType.cancel)) {
+        logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] Upload of "$filePath" was canceled');
+        updateStream.add(FileOperationCanceled(token: token));
+      } else {
+        logger.e(
+            '[FileService($_machineUUID, ${_jRpcClient.uri})] Error while uploading file "$filePath" caught in catchError',
+            e);
+        updateStream.addError(e, s);
+      }
+    }).whenComplete(updateStream.close);
+
+    yield* updateStream.stream;
+    logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] File upload completed');
   }
 
-  _onFileListChanged(Map<String, dynamic> rawMessage) {
+  _onFileListChanged(AsyncValue<Map<String, dynamic>>? previous, AsyncValue<Map<String, dynamic>> next) {
+    if (next.isLoading) return;
+    if (next.hasError) {
+      _fileActionStreamCtrler.addError(next.error!, next.stackTrace);
+      return;
+    }
+    var rawMessage = next.requireValue;
     Map<String, dynamic> params = rawMessage['params'][0];
     FileAction? fileAction = FileAction.tryFromJson(params['action']);
 
@@ -356,8 +537,8 @@ class FileService {
 
     if (allowedFileType != null) {
       filesResponse.removeWhere((element) {
-        String name = element['filename'];
-        var regExp = RegExp('^.*(${allowedFileType.join('|')})\$', multiLine: true, caseSensitive: false);
+        final String name = element['filename'];
+        final regExp = RegExp('^.*\.(${allowedFileType.join('|')})\$', multiLine: true, caseSensitive: false);
         return !regExp.hasMatch(name);
       });
     }
@@ -375,82 +556,50 @@ class FileService {
     return FolderContentWrapper(forPath, listOfFolder, listOfFiles);
   }
 
-  GCodeFile _parseFileMeta(RpcResponse blockingResponse, String forFile) {
-    Map<String, dynamic> response = blockingResponse.result;
-
-    var split = forFile.split('/');
-    split.removeLast();
-    split.insert(0, 'gcodes'); // we need to add the gcodes here since the getMetaInfo omits gcodes path.
-
-    return GCodeFile.fromJson(response, split.join('/'));
-  }
-
-  Uri composeFileUriForDownload(RemoteFile file) {
-    return httpUri.replace(path: 'server/files/${file.absolutPath}');
-  }
-
   dispose() {
-    _jRpcClient.removeMethodListener(_onFileListChanged, "notify_filelist_changed");
     _fileActionStreamCtrler.close();
   }
 }
-
-Future<FileDownload> isolateDownloadFile({
-  required SendPort port,
-  required Uri targetUri,
-  required String downloadPath,
-  Map<String, String> headers = const {},
-  Duration? timeout,
-  bool overWriteLocal = false,
-}) async {
-  logger.i('Got headers: $headers and timeout: $timeout');
-  var file = File(downloadPath);
-  timeout ??= const Duration(seconds: 10);
-
-  if (!overWriteLocal && await file.exists()) {
-    logger.i('File already exists, skipping download');
-    return FileDownloadComplete(file);
-  }
-  port.send(FileDownloadProgress(0));
-  await file.create(recursive: true);
-
-  HttpClientRequest clientRequest = await HttpClient().getUrl(targetUri).timeout(timeout);
-  headers.forEach(clientRequest.headers.add);
-  HttpClientResponse clientResponse = await clientRequest.close().timeout(timeout);
-
-  IOSink writer = file.openWrite();
-  var totalLen = clientResponse.contentLength;
-  var received = 0;
-  await clientResponse.map((s) {
-    received += s.length;
-    port.send(FileDownloadProgress(received / totalLen));
-    return s;
-  }).pipe(writer);
-  await writer.close();
-  logger.i('Download completed!');
-  return FileDownloadComplete(file);
-}
-
-sealed class FileDownload {}
-
-class FileDownloadProgress extends FileDownload {
-  FileDownloadProgress(this.progress);
-
-  final double progress;
-
-  @override
-  String toString() {
-    return 'FileDownloadProgress{progress: $progress}';
-  }
-}
-
-class FileDownloadComplete extends FileDownload {
-  FileDownloadComplete(this.file);
-
-  final File file;
-
-  @override
-  String toString() {
-    return 'FileDownloadComplete{file: $file}';
-  }
-}
+//
+// Future<FileDownload> isolateDownloadFile({
+//   required BaseOptions dioBaseOptions,
+//   required String urlPath,
+//   required String savePath,
+//   required SendPort port,
+//   bool overWriteLocal = false,
+// }) async {
+//   var dio = Dio(dioBaseOptions);
+//   logger.i(
+//       'Created new dio instance for download with options: ${dioBaseOptions.connectTimeout}, ${dioBaseOptions.receiveTimeout}, ${dioBaseOptions.sendTimeout}');
+//   try {
+//     var file = File(savePath);
+//     if (!overWriteLocal && await file.exists()) {
+//       logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] File already exists, skipping download');
+//       return FileDownloadComplete(file, token: );
+//     }
+//     logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] Starting download of $urlPath to $savePath');
+//     var progress = FileDownloadProgress(0);
+//     port.send(progress);
+//     await file.create(recursive: true);
+//
+//     var response = await dio.download(
+//       urlPath,
+//       savePath,
+//       onReceiveProgress: (received, total) {
+//         if (total <= 0) return;
+//         port.send(FileDownloadProgress(received / total));
+//       },
+//     );
+//
+//     logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] Download complete');
+//     return FileDownloadComplete(file);
+//   } on DioException {
+//     rethrow;
+//   } catch (e) {
+//     logger.e('[FileService($_machineUUID, ${_jRpcClient.uri})] Error inside of isolate', e);
+//     throw MobilerakerException('Error while downloading file', parentException: e);
+//   } finally {
+//     logger.i('[FileService($_machineUUID, ${_jRpcClient.uri})] Closing dio instance');
+//     dio.close();
+//   }
+// }

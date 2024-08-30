@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
@@ -12,9 +12,11 @@ part 'generic_fan.g.dart';
 
 @freezed
 class GenericFan extends NamedFan with _$GenericFan {
+  const GenericFan._();
   const factory GenericFan({
     required String name,
     @Default(0) double speed,
+    double? rpm,
   }) = _GenericFan;
 
   factory GenericFan.fromJson(Map<String, dynamic> json, [String? name]) =>

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
@@ -20,8 +20,8 @@ class SelectPrinterDialogController extends _$SelectPrinterDialogController {
       return ref.watch(allMachinesProvider.future);
     }
 
-    return ref.watch(allMachinesProvider.selectAsync(
-        (data) => data.where((element) => element.uuid != active).toList(growable: false)));
+    return ref.watch(allMachinesProvider
+        .selectAsync((data) => data.where((element) => element.uuid != active).toList(growable: false)));
   }
 
   selectMachine(Machine machine) {

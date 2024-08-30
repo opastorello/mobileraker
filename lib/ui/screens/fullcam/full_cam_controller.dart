@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
@@ -21,11 +21,11 @@ WebcamInfo initialCam(InitialCamRef ref) => throw UnimplementedError();
 class FullCamPageController extends _$FullCamPageController {
   @override
   WebcamInfo build() {
-    var rotateCam =
-        ref.watch(settingServiceProvider).readBool(AppSettingKeys.fullscreenCamOrientation, false);
+    var rotateCam = ref.watch(settingServiceProvider).readBool(AppSettingKeys.fullscreenCamOrientation, false);
     if (rotateCam) {
       SystemChrome.setPreferredOrientations(
-          [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+        [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight],
+      );
     }
 
     ref.onDispose(() {

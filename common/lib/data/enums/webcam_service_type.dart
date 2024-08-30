@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
@@ -19,7 +19,14 @@ enum WebcamServiceType {
   @JsonValue('ipstream')
   ipSream(false, false),
   @JsonValue('webrtc-camerastreamer')
-  webRtc(true, true),
+  webRtcCamStreamer(true, true),
+  @JsonValue('webrtc-go2rtc')
+  webRtcGo2Rtc(true, true),
+  @JsonValue('webrtc-mediamtx')
+  webRtcMediaMtx(true, true),
+  // This is a special case to make it possible to show "Preview" in the UI
+  @JsonValue('_MrPrev_')
+  preview(true, true),
   @JsonValue('unknown')
   unknown(false, false);
 
@@ -28,4 +35,8 @@ enum WebcamServiceType {
   final bool forSupporters;
 
   const WebcamServiceType(this.supported, this.forSupporters);
+
+  static List<WebcamServiceType> renderedValues() => WebcamServiceType.values
+      .where((element) => element != WebcamServiceType.preview && element != WebcamServiceType.unknown)
+      .toList();
 }

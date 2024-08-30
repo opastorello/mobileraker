@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
@@ -66,7 +66,7 @@ void main() {
     // Verify extruder config
     expect(config.extruders, hasLength(1));
     expect(config.extruderForIndex(0), isNotNull);
-    expect(config.extruderForIndex(0)?.name, "extruder");
+    expect(config.extruderForIndex(0)?.name, 'extruder');
     expect(config.extruderForIndex(0)?.nozzleDiameter, 0.4);
     expect(config.extruderForIndex(0)?.maxExtrudeOnlyDistance, 200);
     expect(config.extruderForIndex(0)?.minTemp, 10);
@@ -165,7 +165,7 @@ void main() {
     expect(config.configPrintCoolingFan?.cycleTime, 0.01);
     expect(config.configPrintCoolingFan?.hardwarePwm, false);
     expect(config.configPrintCoolingFan?.shutdownSpeed, 0);
-    expect(config.configPrintCoolingFan?.pin, "PA8");
+    expect(config.configPrintCoolingFan?.pin, 'PA8');
     expect(config.configPrintCoolingFan?.tachometerPin, isNull);
     expect(config.configPrintCoolingFan?.tachometerPpr, 2);
     expect(config.configPrintCoolingFan?.tachometerPollInterval, 0.0015);
@@ -188,5 +188,21 @@ void main() {
     expect(config.configBedScrews?.probeSpeed, 5);
     expect(config.configBedScrews?.speed, 50);
     expect(config.configBedScrews?.screws.length, 3);
+
+    // Verify ScrewsTiltAdjust config
+    expect(config.configScrewsTiltAdjust, isNotNull);
+    expect(config.configScrewsTiltAdjust?.screwThread, 'CW-M3');
+    expect(config.configScrewsTiltAdjust?.horizontalMoveZ, 10);
+    expect(config.configScrewsTiltAdjust?.speed, 50);
+
+    expect(config.configScrewsTiltAdjust?.screws.length, 4);
+    expect(config.configScrewsTiltAdjust?.screws[0].name, 'front left screw');
+    expect(config.configScrewsTiltAdjust?.screws[0].position, [5, 30]);
+    expect(config.configScrewsTiltAdjust?.screws[1].name, 'front right screw');
+    expect(config.configScrewsTiltAdjust?.screws[1].position, [155, 30]);
+    expect(config.configScrewsTiltAdjust?.screws[2].name, 'rear right screw');
+    expect(config.configScrewsTiltAdjust?.screws[2].position, [155, 190]);
+    expect(config.configScrewsTiltAdjust?.screws[3].name, 'rear left screw');
+    expect(config.configScrewsTiltAdjust?.screws[3].position, [5, 190]);
   });
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023. Patrick Schmidt.
+ * Copyright (c) 2023-2024. Patrick Schmidt.
  * All rights reserved.
  */
 
@@ -19,5 +19,5 @@ class StampedEntity {
           lastModified == other.lastModified;
 
   @override
-  int get hashCode => created.hashCode ^ lastModified.hashCode;
+  int get hashCode => Object.hash(created, lastModified);
 }
